@@ -25,13 +25,18 @@ const buttonVariants = cva(
           "hover:brightness-110 active:brightness-95"
         ),
         // Secondary: solid tinted surface with a real border — the old 10%-opacity
-        // fill + white text failed WCAG contrast (~1.2:1); this variant is
-        // solid enough to guarantee AA at any size.
+        // fill + white text failed WCAG contrast (~1.2:1). Verified pairings
+        // (WCAG 2.1 AA, 4.5:1 required at this component's 14-16px/600 weight
+        // text size — it does not qualify for the 3:1 large-text threshold):
+        //   light: --color-primary-800 (#96401f) on --color-primary-50 (#fff3ec) = 6.32:1
+        //   dark:  --color-primary-100 (#ffe1d0) on solid --color-primary-900 (#6e2e16) = 8.20:1
+        // Both backgrounds are solid (no color-mix/opacity) so the ratios above
+        // are the actual rendered contrast, not dependent on what sits behind the button.
         secondary: cn(
-          "border border-[var(--color-primary)] bg-[var(--color-primary-50)] text-[var(--color-primary-700)]",
+          "border border-[var(--color-primary)] bg-[var(--color-primary-50)] text-[var(--color-primary-800)]",
           "hover:bg-[var(--color-primary-100)] active:bg-[var(--color-primary-200)]",
-          "dark:bg-[color-mix(in_srgb,var(--color-primary-900)_55%,transparent)] dark:text-[var(--color-primary-100)] dark:border-[var(--color-primary-400)]",
-          "dark:hover:bg-[color-mix(in_srgb,var(--color-primary-900)_75%,transparent)]"
+          "dark:bg-[var(--color-primary-900)] dark:text-[var(--color-primary-100)] dark:border-[var(--color-primary-400)]",
+          "dark:hover:bg-[var(--color-primary-800)]"
         ),
         // Tertiary: Gradient text only (ghost/link style)
         tertiary: cn(
