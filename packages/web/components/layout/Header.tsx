@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Spinner } from "@/components/ui/Spinner";
 import { Plus } from "@/components/ui/icons";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export function Header() {
   const router = useRouter();
@@ -61,6 +62,7 @@ export function Header() {
 
         {/* Right: auth state */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <ThemeToggle />
           <Button asChild variant="secondary" size="sm">
             <Link
               href={
