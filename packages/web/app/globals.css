@@ -120,8 +120,8 @@
   /* Typography */
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  --font-display: "Gilgan", var(--font-sans);
-  --font-alt: "Montserrat", var(--font-sans);
+  --font-display: var(--font-display-family), var(--font-sans);
+  --font-alt: var(--font-sans);
 
   /* Font sizes (fluid ramps for headings) */
   --text-xs: 0.75rem; /* 12 */
@@ -299,10 +299,6 @@
   /* Semantic shadows */
   --shadow-card: var(--shadow-card);
   --shadow-elevated: var(--shadow-elevated);
-
-  /* Font families */
-  --font-family-gilgan: "Gilgan", sans-serif;
-  --font-family-montserrat: "Montserrat", sans-serif;
 
   --gradient-bg: #09011a;
 
@@ -494,38 +490,6 @@ button {
 }
 
 @layer base {
-  @font-face {
-    font-family: "Gilgan";
-    src: url("/fonts/Gilgan.woff2") format("woff2");
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: "Montserrat";
-    src: url("/fonts/Montserrat-Regular.woff2") format("woff2");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: "Montserrat";
-    src: url("/fonts/Montserrat-Medium.woff2") format("woff2");
-    font-weight: 500;
-    font-style: normal;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: "Montserrat";
-    src: url("/fonts/Montserrat-Bold.woff2") format("woff2");
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
-  }
-
   /* Use Inter as fallback */
   html {
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -539,7 +503,7 @@ button {
   h4,
   h5,
   h6 {
-    font-family: "Gilgan", sans-serif;
+    font-family: var(--font-display);
     font-weight: bold;
     line-height: 1.2;
   }
