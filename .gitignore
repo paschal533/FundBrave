@@ -97,3 +97,4 @@ packages/api/dev-uploads/
 
 # Build output
 dist/
+.worktrees/
