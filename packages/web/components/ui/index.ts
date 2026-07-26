@@ -28,7 +28,6 @@ export {
 export { Avatar, type AvatarProps, type AvatarSize } from "./Avatar";
 export { Toggle, type ToggleProps } from "./Toggle";
 export { EmptyState, EmptyStateCompact } from "./EmptyState";
-export { default as TabNavigation } from "./TabNavigation";
 
 // Toast system
 export {
@@ -70,13 +69,12 @@ export {
   FooterContent,
 } from "./MainContent";
 
-// Shared types (used by TabNavigation / form fields)
+// Shared types (used by form fields)
 export type {
   PostType,
   SelectFieldProps,
   InputFieldProps,
   TextAreaFieldProps,
-  MediaActionsProps,
 } from "./types/CreatePost.types";
 
 // Inline SVG icons used by form fields (ported from providerIcons.tsx)

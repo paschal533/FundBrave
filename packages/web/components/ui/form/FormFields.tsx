@@ -5,19 +5,10 @@ import { ChevronDown } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import IconButton from "../icon-button";
 import type {
-  MediaActionsProps,
   SelectFieldProps,
   InputFieldProps,
   TextAreaFieldProps,
 } from "../types/CreatePost.types";
-import {
-  GifIcon,
-  PollIcon,
-  Image as ImageIcon,
-  MapPin,
-  Calendar,
-  Smile,
-} from "../providerIcons";
 
 // FieldError Component
 interface FieldErrorProps {
@@ -79,41 +70,6 @@ const CharacterCount: React.FC<CharacterCountProps> = ({ current, max, min }) =>
     >
       {current}/{max}
     </span>
-  );
-};
-
-// Media Actions Component
-const MediaActions: React.FC<MediaActionsProps> = ({
-  onImageClick,
-  onGifClick,
-  onPollClick,
-  onEmojiClick,
-  onCalendarClick,
-  onLocationClick,
-}) => {
-  const mediaButtons = [
-    { icon: ImageIcon, label: "Insert Image", onClick: onImageClick },
-    { icon: GifIcon, label: "Insert GIF", onClick: onGifClick },
-    { icon: PollIcon, label: "Insert Poll", onClick: onPollClick },
-    { icon: Smile, label: "Insert Emoji", onClick: onEmojiClick },
-    { icon: Calendar, label: "Insert Calendar", onClick: onCalendarClick },
-    { icon: MapPin, label: "Insert Location", onClick: onLocationClick },
-  ];
-
-  return (
-    <div className="flex items-center gap-2 sm:gap-4 mt-4 flex-wrap">
-      {mediaButtons.map(({ icon: Icon, label, onClick }) => (
-        <IconButton
-          key={label}
-          ariaLabel={label}
-          type="button"
-          onClick={onClick}
-          className="hover:bg-surface-overlay transition-colors p-2"
-        >
-          <Icon size={18} className="sm:w-5 sm:h-5 text-gray-600 dark:text-text-secondary" />
-        </IconButton>
-      ))}
-    </div>
   );
 };
 
@@ -432,7 +388,6 @@ export const TextAreaField: React.FC<TextAreaFieldProps> = ({
             "leading-[28px] sm:leading-[32px] lg:leading-[36px]"
           )}
         />
-        {showMediaActions && mediaActions && <MediaActions {...mediaActions} />}
       </div>
       <FieldError error={error} />
     </div>
