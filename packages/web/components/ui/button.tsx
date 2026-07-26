@@ -18,10 +18,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Primary: Brand gradient with glow
+        // Primary: Brand gradient with glow. Text uses --color-primary-foreground
+        // (#1a0e08, near-black) rather than white — white-on-coral measures
+        // ~2.3:1 against the gradient start and fails WCAG AA outright. Verified
+        // (WCAG 2.1 AA, 4.5:1 required at this component's 16px/600 weight text):
+        //   #1a0e08 on --color-primary   (#ff8a5c, gradient start) = 8.14:1
+        //   #1a0e08 on --color-primary-600 (#e06a3c, gradient end) = 5.67:1
         primary: cn(
           "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)]",
-          "text-white shadow-[0_8px_30px_0_rgba(255,138,92,0.35)]",
+          "text-[var(--color-primary-foreground)] shadow-[0_8px_30px_0_rgba(255,138,92,0.35)]",
           "hover:brightness-110 active:brightness-95"
         ),
         // Secondary: solid tinted surface with a real border — the old 10%-opacity

@@ -173,14 +173,28 @@ export default function HomePage() {
       </section>
 
       {/* ============================== CLOSING CTA ============================== */}
+      {/*
+        --gradient-cta runs #ff8a5c -> #ffb454 (coral -> amber). White text
+        measured ~1.8:1 against the amber end and failed even as large text.
+        Using --color-primary-foreground (#1a0e08) instead, verified against
+        both gradient endpoints (WCAG 2.1 AA):
+          heading, solid (needs 3:1):     #1a0e08 on #ff8a5c = 8.14:1, on #ffb454 = 10.73:1
+          body, at 80% opacity (needs 4.5:1, computed against the blended
+          on-gradient color): on #ff8a5c = 5.72:1, on #ffb454 = 7.03:1
+      */}
       <section className="bg-[var(--gradient-cta)] px-4 py-16 text-center sm:py-24">
-        <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">
+        <h2 className="font-display text-3xl font-bold text-[var(--color-primary-foreground)] sm:text-4xl">
           Ready to raise funds for what matters?
         </h2>
-        <p className="mx-auto mt-3 max-w-md text-white/90">
+        <p className="mx-auto mt-3 max-w-md text-[var(--color-primary-foreground)]/80">
           It takes a few minutes to get started — no crypto experience required.
         </p>
-        <Button asChild size="lg" variant="secondary" className="mt-8 border-white bg-white/15 text-white hover:bg-white/25">
+        <Button
+          asChild
+          size="lg"
+          variant="secondary"
+          className="mt-8 border-white bg-white/15 text-white hover:bg-white/25 dark:border-white/40 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+        >
           <Link href="/auth/login">Start a campaign</Link>
         </Button>
       </section>
