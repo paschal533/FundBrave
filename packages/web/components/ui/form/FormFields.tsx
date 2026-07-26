@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "motion/react";
 import gsap from "gsap";
 import { ChevronDown } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
-import IconButton from "../icon-button";
 import type {
   SelectFieldProps,
   InputFieldProps,
