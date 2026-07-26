@@ -20,21 +20,23 @@ const buttonVariants = cva(
       variant: {
         // Primary: Brand gradient with glow
         primary: cn(
-          "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-purple-500)_50%,var(--color-soft-purple-500)_100%)]",
-          "text-white shadow-[0_8px_30px_0_rgba(97,36,243,0.35)]",
+          "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)]",
+          "text-white shadow-[0_8px_30px_0_rgba(255,138,92,0.35)]",
           "hover:brightness-110 active:brightness-95"
         ),
-        // Secondary: Frosted glass with border
+        // Secondary: solid tinted surface with a real border — the old 10%-opacity
+        // fill + white text failed WCAG contrast (~1.2:1); this variant is
+        // solid enough to guarantee AA at any size.
         secondary: cn(
-          "backdrop-blur-[18px] bg-[rgba(69,12,240,0.10)]",
-          "relative text-white",
-          "before:absolute before:inset-0 before:rounded-[20px] before:border before:border-[var(--color-primary)] before:shadow-[0_8px_30px_0_rgba(29,5,82,0.35)] before:pointer-events-none",
-          "hover:bg-[rgba(69,12,240,0.14)] active:bg-[rgba(69,12,240,0.18)]"
+          "border border-[var(--color-primary)] bg-[var(--color-primary-50)] text-[var(--color-primary-700)]",
+          "hover:bg-[var(--color-primary-100)] active:bg-[var(--color-primary-200)]",
+          "dark:bg-[color-mix(in_srgb,var(--color-primary-900)_55%,transparent)] dark:text-[var(--color-primary-100)] dark:border-[var(--color-primary-400)]",
+          "dark:hover:bg-[color-mix(in_srgb,var(--color-primary-900)_75%,transparent)]"
         ),
         // Tertiary: Gradient text only (ghost/link style)
         tertiary: cn(
           "relative text-transparent bg-clip-text",
-          "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-purple-500)_50%,var(--color-soft-purple-500)_100%)]",
+          "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)]",
           "hover:opacity-90 active:opacity-80"
         ),
         // Destructive: Error/Delete actions
@@ -42,9 +44,9 @@ const buttonVariants = cva(
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         // Outline: Bordered transparent
         outline:
-          "border border-border-default bg-transparent text-foreground dark:text-white hover:bg-surface-overlay",
+          "border border-border-default bg-transparent text-foreground hover:bg-surface-overlay",
         // Ghost: No background until hover
-        ghost: "text-foreground dark:text-white hover:bg-accent hover:text-accent-foreground",
+        ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
         // Link: Text only with underline
         link: "text-primary underline-offset-4 hover:underline",
       },
