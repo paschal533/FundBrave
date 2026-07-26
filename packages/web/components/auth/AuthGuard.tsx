@@ -47,23 +47,35 @@ export function AuthGuard({
     }
   }, [status, needsOnboarding, requireOnboarded, router]);
 
-  const isLoading =
-    status !== "authenticated" && status !== "error"
-      ? status === "unauthenticated" || status === "not_whitelisted"
-        ? false // a redirect is already in flight, don't show the timeout UI
-        : true
-      : requireOnboarded && needsOnboarding;
+  // Awaiting the onboarding redirect: authenticated, but requireOnboarded
+  // pages must bounce the user to /onboarding first.
+  const isAwaitingOnboardingRedirect =
+    status === "authenticated" && requireOnboarded && needsOnboarding;
+
+  // Show the spinner for every state where we're not yet ready to render
+  // children: Privy still initializing, a redirect (login/request-access/
+  // onboarding) is in flight, or we're waiting to hear back from either.
+  const shouldShowSpinner =
+    status === "loading" ||
+    status === "unauthenticated" ||
+    status === "not_whitelisted" ||
+    isAwaitingOnboardingRedirect;
+
+  // Only genuinely-indefinite states get the 12s stuck-timeout escape hatch.
+  // "unauthenticated"/"not_whitelisted" resolve via a same-tick
+  // router.replace() in the effect above and are never at risk of hanging.
+  const isTimeoutEligible = status === "loading" || isAwaitingOnboardingRedirect;
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isTimeoutEligible) {
       setTimedOut(false);
       return;
     }
     const timer = setTimeout(() => setTimedOut(true), LOADING_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [isLoading]);
+  }, [isTimeoutEligible]);
 
-  if (status === "error" || (isLoading && timedOut)) {
+  if (status === "error" || (isTimeoutEligible && timedOut)) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="max-w-sm text-text-secondary">
@@ -78,7 +90,7 @@ export function AuthGuard({
     );
   }
 
-  if (isLoading) {
+  if (shouldShowSpinner) {
     return (
       <div
         className="flex min-h-[60vh] items-center justify-center"
