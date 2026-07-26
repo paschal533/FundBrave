@@ -30,7 +30,7 @@ const HOW_IT_WORKS = [
 ] as const;
 
 function FeaturedCampaigns() {
-  const { data, isLoading } = useCampaignsList({
+  const { data, isLoading, isError, refetch } = useCampaignsList({
     page: 1,
     limit: 3,
     sort: "most_raised",
@@ -43,6 +43,21 @@ function FeaturedCampaigns() {
           <CampaignCardSkeleton key={i} />
         ))}
       </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <p className="text-center text-text-secondary">
+        Could not load campaigns right now.{" "}
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="text-primary underline underline-offset-4"
+        >
+          Try again
+        </button>
+      </p>
     );
   }
 
