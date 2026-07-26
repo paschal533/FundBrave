@@ -5,18 +5,35 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Clock } from "@/components/ui/icons";
+import { Spinner } from "@/components/ui/Spinner";
 
 export default function RequestAccessPage() {
   const router = useRouter();
   const { status, privyEmail, logout } = useAuth();
   const [switching, setSwitching] = useState(false);
 
-  // If they got whitelisted since (or land here by mistake), move them on.
   useEffect(() => {
     if (status === "authenticated") {
+      // Got whitelisted since, or landed here by mistake — move them on.
       router.replace("/dashboard");
+    } else if (status === "unauthenticated") {
+      // Never logged in at all — this page has nothing to say to them.
+      router.replace("/auth/login");
     }
   }, [status, router]);
+
+  if (status === "loading" || status === "unauthenticated" || status === "authenticated") {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-[calc(100vh-4rem)] items-center justify-center"
+        role="status"
+        aria-label="Loading"
+      >
+        <Spinner size="lg" color="primary" />
+      </main>
+    );
+  }
 
   const handleSwitchAccount = async () => {
     setSwitching(true);
