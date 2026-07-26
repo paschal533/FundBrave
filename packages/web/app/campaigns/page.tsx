@@ -144,7 +144,7 @@ function MobileCategoryFilter({
 }) {
   return (
     <div
-      className="scrollbar-hidden -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden"
+      className="scrollbar-hidden relative -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-32px),transparent)]"
       role="group"
       aria-label="Filter by category"
     >

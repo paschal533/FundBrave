@@ -72,6 +72,7 @@ export function Header() {
             >
               <Plus size={16} aria-hidden="true" />
               <span className="hidden sm:inline">Start a campaign</span>
+              <span className="sm:hidden">Start</span>
             </Link>
           </Button>
           {status === "loading" ? (
