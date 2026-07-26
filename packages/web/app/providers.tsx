@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider } from "wagmi";
@@ -12,14 +12,27 @@ import { isPrivyConfigured, privyAppId } from "@/lib/privy-config";
 import { wagmiConfig } from "@/lib/wagmi";
 
 /** RainbowKit's own theme prop, kept in sync with next-themes so the wallet
- * modal doesn't stay dark-only regardless of the app's chosen theme. */
+ * modal doesn't stay dark-only regardless of the app's chosen theme.
+ *
+ * `next-themes` synchronously reads `localStorage` on the client's first
+ * render, so a returning dark-mode user can get `resolvedTheme === "dark"`
+ * before this component has ever rendered on the server. The server always
+ * renders with `lightTheme()` (no `localStorage` during SSR, matching this
+ * provider's `defaultTheme="light"`), so switching themes immediately would
+ * cause a hydration mismatch in RainbowKitProvider's injected <style> tag.
+ * Guard with a `mounted` flag and stay on `lightTheme()` until after the
+ * first client render, mirroring the pattern in ThemeToggle.tsx. */
 function RainbowKitThemedProvider({ children }: { children: ReactNode }) {
   const { resolvedTheme } = useTheme();
-  return (
-    <RainbowKitProvider theme={resolvedTheme === "dark" ? darkTheme() : lightTheme()}>
-      {children}
-    </RainbowKitProvider>
-  );
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const theme = mounted && resolvedTheme === "dark" ? darkTheme() : lightTheme();
+
+  return <RainbowKitProvider theme={theme}>{children}</RainbowKitProvider>;
 }
 
 export function Providers({ children }: { children: ReactNode }) {
