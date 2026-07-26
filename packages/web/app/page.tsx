@@ -181,6 +181,16 @@ export default function HomePage() {
           heading, solid (needs 3:1):     #1a0e08 on #ff8a5c = 8.14:1, on #ffb454 = 10.73:1
           body, at 80% opacity (needs 4.5:1, computed against the blended
           on-gradient color): on #ff8a5c = 5.72:1, on #ffb454 = 7.03:1
+
+        The "Start a campaign" button label reused text-white and also failed
+        (~2.05:1 light, ~2.14:1 dark) against the effective background, which
+        is white-at-15%/10%-opacity blended over the gradient, not the
+        gradient alone. Switched the label to --color-primary-foreground too,
+        verified against the blended background (WCAG 2.1 AA, needs 4.5:1):
+          light (bg-white/15) on #ff8a5c blend = 9.24:1, on #ffb454 blend = 11.65:1
+          dark (bg-white/10)  on #ff8a5c blend = 8.85:1, on #ffb454 blend = 11.38:1
+        The translucent glass background/border is unchanged — only the text
+        color moved off text-white.
       */}
       <section className="bg-[var(--gradient-cta)] px-4 py-16 text-center sm:py-24">
         <h2 className="font-display text-3xl font-bold text-[var(--color-primary-foreground)] sm:text-4xl">
@@ -193,7 +203,7 @@ export default function HomePage() {
           asChild
           size="lg"
           variant="secondary"
-          className="mt-8 border-white bg-white/15 text-white hover:bg-white/25 dark:border-white/40 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+          className="mt-8 border-white bg-white/15 text-[var(--color-primary-foreground)] hover:bg-white/25 dark:border-white/40 dark:bg-white/10 dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/20"
         >
           <Link href="/auth/login">Start a campaign</Link>
         </Button>
