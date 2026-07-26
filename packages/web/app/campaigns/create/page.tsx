@@ -225,7 +225,7 @@ function StepsIndicator({
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors",
                   active &&
-                    "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-purple-500)_100%)] text-white",
+                    "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] text-white",
                   done && "bg-primary/20 text-primary-200",
                   !active && !done && "bg-surface-elevated text-text-tertiary"
                 )}
@@ -713,7 +713,7 @@ function CreateCampaignWizard() {
                   className={cn(
                     "h-12 w-full rounded-[12px] bg-gray-100 pr-4 pl-8 text-foreground outline-none sm:h-14 sm:rounded-[16px] dark:bg-neutral-dark-400",
                     "font-['Poppins'] text-[14px] font-medium placeholder:text-text-secondary sm:text-[15px]",
-                    "focus:ring-2 focus:ring-purple-500/50 focus:ring-opacity-50 transition-all",
+                    "focus:ring-2 focus:ring-primary/50 transition-all",
                     errors.goalUsd && "ring-2 ring-destructive/50",
                     isLive && "cursor-not-allowed opacity-50"
                   )}
@@ -745,7 +745,7 @@ function CreateCampaignWizard() {
                 className={cn(
                   "h-12 w-full rounded-[12px] bg-gray-100 px-4 text-foreground outline-none sm:h-14 sm:rounded-[16px] dark:bg-neutral-dark-400",
                   "font-['Poppins'] text-[14px] font-medium sm:text-[15px]",
-                  "focus:ring-2 focus:ring-purple-500/50 transition-all",
+                  "focus:ring-2 focus:ring-primary/50 transition-all",
                   "[color-scheme:dark]",
                   errors.deadline && "ring-2 ring-destructive/50",
                   isLive && "cursor-not-allowed opacity-50"

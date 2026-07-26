@@ -55,7 +55,7 @@ export const strengthConfig: Record<
     width: "50%",
   },
   good: {
-    color: "var(--purple-500)",
+    color: "var(--color-primary-600)",
     label: "Good",
     width: "75%",
   },

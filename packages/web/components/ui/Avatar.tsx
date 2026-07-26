@@ -56,7 +56,7 @@ export function Avatar({
         role="img"
         aria-label={alt}
       >
-        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary-500 to-soft-purple-500 p-[2px]">
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary-500 to-brave-amber p-[2px]">
           <div className="relative h-full w-full overflow-hidden rounded-full bg-background">
             {src && !imageError ? (
               <Image

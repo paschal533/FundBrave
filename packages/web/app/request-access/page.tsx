@@ -36,7 +36,7 @@ export default function RequestAccessPage() {
       <div className="flex w-full max-w-md flex-col items-center gap-6 rounded-3xl border border-white/10 bg-surface-elevated p-8 sm:p-10">
         <div
           aria-hidden="true"
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(69,12,240,0.12)] text-purple-400"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-primary-100)] text-[var(--color-primary-600)] dark:bg-[color-mix(in_srgb,var(--color-primary-900)_50%,transparent)] dark:text-[var(--color-primary-200)]"
         >
           <Clock size={28} />
         </div>

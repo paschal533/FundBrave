@@ -101,7 +101,7 @@ export function MediaPlaceholder({ className }: { className?: string }) {
       aria-hidden="true"
       className={cn(
         "absolute inset-0 flex items-center justify-center",
-        "bg-[linear-gradient(135deg,var(--primary-800)_0%,var(--purple-700)_55%,var(--soft-purple-700)_100%)]",
+        "bg-[linear-gradient(135deg,var(--primary-800)_0%,var(--primary-600)_55%,var(--brave-amber)_100%)]",
         className
       )}
     >

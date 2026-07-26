@@ -152,7 +152,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
             "font-['Poppins'] font-medium text-[14px] sm:text-[15px] lg:text-[16px]",
             "tracking-[0.64px] leading-normal",
             "text-foreground appearance-none cursor-pointer outline-none",
-            "focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50",
+            "focus:ring-2 focus:ring-primary focus:ring-opacity-50",
             "transition-all duration-200",
             error && "ring-2 ring-destructive/50",
             disabled && "opacity-50 cursor-not-allowed",
@@ -222,7 +222,7 @@ export const InputField: React.FC<InputFieldProps> = ({
   const handleFocus = useCallback(() => {
     if (inputRef.current) {
       gsap.to(inputRef.current, {
-        boxShadow: "0 0 0 2px rgba(139, 92, 246, 0.5)",
+        boxShadow: "0 0 0 2px rgba(255, 138, 92, 0.5)",
         duration: 0.2,
         ease: "power2.out",
       });
@@ -274,7 +274,7 @@ export const InputField: React.FC<InputFieldProps> = ({
             "font-['Poppins'] font-medium text-[14px] sm:text-[15px] lg:text-[16px]",
             "tracking-[0.64px] leading-[28px] sm:leading-[32px] lg:leading-[36px]",
             "text-foreground placeholder:text-text-secondary outline-none",
-            "focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50",
+            "focus:ring-2 focus:ring-primary focus:ring-opacity-50",
             "transition-all duration-200",
             error && "ring-2 ring-destructive/50"
           )}
@@ -365,7 +365,7 @@ export const TextAreaField: React.FC<TextAreaFieldProps> = ({
         className={cn(
           "bg-gray-100 dark:bg-neutral-dark-400 rounded-[12px] sm:rounded-[16px] lg:rounded-[20px]",
           "p-4 sm:p-6 lg:p-8 flex flex-col justify-between",
-          "focus-within:ring-2 focus-within:ring-purple-500 focus-within:ring-opacity-50",
+          "focus-within:ring-2 focus-within:ring-primary focus-within:ring-opacity-50",
           "transition-all duration-200",
           minHeightClass,
           error && "ring-2 ring-destructive/50"

@@ -27,7 +27,7 @@ export function LoginScreen() {
     >
       {/* FundBrave mark */}
       <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
-        <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-purple-500)_50%,var(--color-soft-purple-500)_100%)] bg-clip-text text-transparent">
+        <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent">
           FundBrave
         </span>
       </h1>
