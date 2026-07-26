@@ -65,6 +65,7 @@ export {
   Grid,
   List,
   SlidersHorizontal,
+  Compass,
 } from './ui';
 
 // Form Icons (mail, lock, user, upload)

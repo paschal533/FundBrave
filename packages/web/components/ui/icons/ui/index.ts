@@ -31,4 +31,5 @@ export {
   Grid,
   List,
   SlidersHorizontal,
+  Compass,
 } from './UIIcons';

@@ -706,3 +706,25 @@ export const ExternalLink = forwardRef<SVGSVGElement, IconProps>(
   )
 );
 ExternalLink.displayName = 'ExternalLink';
+
+export const Compass = forwardRef<SVGSVGElement, IconProps>(
+  ({ size = 24, className, ...props }, ref) => (
+    <svg
+      ref={ref}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="12 2 15 9 22 12 15 15 12 22 9 15 2 12 9 9" />
+    </svg>
+  )
+);
+Compass.displayName = 'Compass';
