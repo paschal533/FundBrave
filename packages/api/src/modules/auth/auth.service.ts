@@ -49,20 +49,39 @@ export class AuthService {
       });
     }
 
-    const user = await this.prisma.user.upsert({
-      where: { privyDid: did },
-      create: {
-        privyDid: did,
-        email,
-        walletAddress: profile.embeddedWalletAddress,
-        role: isRootAdmin ? Role.ADMIN : Role.USER,
-      },
-      update: {
-        email,
-        walletAddress: profile.embeddedWalletAddress,
-        ...(isRootAdmin ? { role: Role.ADMIN } : {}),
-      },
-    });
+    // Two-step instead of a single upsert-by-privyDid: a user row can
+    // already exist keyed by `email` (e.g. seed-mvp.ts's synthetic admin
+    // row, privyDid `seed:admin:<email>`) before this DID's first real
+    // sync. upsert-by-privyDid alone would then hit `create` and collide
+    // with that row's unique `email` constraint (P2002). Checking by
+    // privyDid first, then falling back to an upsert keyed by `email`,
+    // lets a real login claim/adopt a pre-existing email-keyed row instead
+    // of failing outright — mirroring how seed-mvp.ts already handles the
+    // opposite ordering (real user first, seed run after).
+    const existing = await this.prisma.user.findUnique({ where: { privyDid: did } });
+    const user = existing
+      ? await this.prisma.user.update({
+          where: { privyDid: did },
+          data: {
+            email,
+            walletAddress: profile.embeddedWalletAddress,
+            ...(isRootAdmin ? { role: Role.ADMIN } : {}),
+          },
+        })
+      : await this.prisma.user.upsert({
+          where: { email },
+          create: {
+            privyDid: did,
+            email,
+            walletAddress: profile.embeddedWalletAddress,
+            role: isRootAdmin ? Role.ADMIN : Role.USER,
+          },
+          update: {
+            privyDid: did,
+            walletAddress: profile.embeddedWalletAddress,
+            ...(isRootAdmin ? { role: Role.ADMIN } : {}),
+          },
+        });
 
     // Mark invite consumed / self-heal root admin whitelist entry
     if (entry && !entry.usedAt) {
