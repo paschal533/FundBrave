@@ -140,7 +140,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {loading ? (
           <>
-            <Spinner size="sm" color="white" aria-hidden="true" />
+            <Spinner size="sm" color="current" aria-hidden="true" />
             <span>{loadingText}</span>
           </>
         ) : (

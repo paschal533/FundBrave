@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Spinner } from "@/components/ui/Spinner";
-import { Plus } from "@/components/ui/icons";
+import { Plus, Shield } from "@/components/ui/icons";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export function Header() {
@@ -55,7 +55,7 @@ export function Header() {
             {status === "authenticated" && user?.role === "ADMIN" && (
               <Link
                 href="/admin"
-                className="rounded-md text-sm font-medium text-text-secondary transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                className="hidden rounded-md text-sm font-medium text-text-secondary transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:inline"
               >
                 Admin
               </Link>
@@ -65,6 +65,15 @@ export function Header() {
 
         {/* Right: auth state */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {status === "authenticated" && user?.role === "ADMIN" && (
+            <Link
+              href="/admin"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-overlay hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:hidden"
+              aria-label="Open admin panel"
+            >
+              <Shield size={18} aria-hidden="true" />
+            </Link>
+          )}
           <ThemeToggle />
           <Button asChild variant="secondary" size="sm">
             <Link
