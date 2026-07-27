@@ -42,7 +42,10 @@ export function Header() {
             </span>
           </Link>
 
-          <nav aria-label="Primary" className="flex items-center gap-4 sm:gap-6">
+          <nav
+            aria-label="Primary"
+            className="hidden items-center gap-4 sm:flex sm:gap-6"
+          >
             <Link
               href="/campaigns"
               className="rounded-md text-sm font-medium text-text-secondary transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"

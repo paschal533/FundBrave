@@ -106,7 +106,11 @@ function MediaGallery({
                   <Play size={18} className="text-white" aria-hidden="true" />
                 </span>
               ) : (
-                <CampaignImage src={item.url} alt="" sizes="96px" />
+                <CampaignImage
+                  src={item.url}
+                  alt={`${title} — media ${index + 1}`}
+                  sizes="96px"
+                />
               )}
             </button>
           ))}

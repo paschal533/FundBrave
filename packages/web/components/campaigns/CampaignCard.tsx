@@ -237,7 +237,7 @@ export function CampaignCard({
         {cover ? (
           <CampaignImage
             src={cover}
-            alt=""
+            alt={campaign.title}
             priority={priority}
             className="transition-transform duration-300 group-hover:scale-105"
           />
