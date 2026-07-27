@@ -304,6 +304,11 @@ function DashboardContent() {
         )}
 
         <div className="flex flex-col gap-3 sm:flex-row">
+          {user.role === "ADMIN" && (
+            <Button asChild variant="secondary" className="sm:w-auto">
+              <Link href="/admin">Admin panel</Link>
+            </Button>
+          )}
           <Button
             variant="secondary"
             onClick={handleLogout}
