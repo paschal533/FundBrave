@@ -1,10 +1,24 @@
-import { ForbiddenException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role, User } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PrivyService } from './privy.service';
 
 export const NOT_WHITELISTED = 'NOT_WHITELISTED';
+
+/**
+ * privyDid prefix used ONLY by prisma/seed-mvp.ts for its synthetic admin
+ * placeholder row. Must stay in sync with that file — it's the sentinel
+ * syncUser() checks before adopting a pre-existing email-keyed row, so a
+ * real user row can never be silently reassigned to a different login.
+ */
+const SEED_PRIVY_DID_PREFIX = 'seed:';
 
 @Injectable()
 export class AuthService {
@@ -53,35 +67,51 @@ export class AuthService {
     // already exist keyed by `email` (e.g. seed-mvp.ts's synthetic admin
     // row, privyDid `seed:admin:<email>`) before this DID's first real
     // sync. upsert-by-privyDid alone would then hit `create` and collide
-    // with that row's unique `email` constraint (P2002). Checking by
-    // privyDid first, then falling back to an upsert keyed by `email`,
-    // lets a real login claim/adopt a pre-existing email-keyed row instead
-    // of failing outright — mirroring how seed-mvp.ts already handles the
-    // opposite ordering (real user first, seed run after).
-    const existing = await this.prisma.user.findUnique({ where: { privyDid: did } });
-    const user = existing
-      ? await this.prisma.user.update({
-          where: { privyDid: did },
-          data: {
-            email,
-            walletAddress: profile.embeddedWalletAddress,
-            ...(isRootAdmin ? { role: Role.ADMIN } : {}),
-          },
-        })
-      : await this.prisma.user.upsert({
-          where: { email },
-          create: {
-            privyDid: did,
-            email,
-            walletAddress: profile.embeddedWalletAddress,
-            role: isRootAdmin ? Role.ADMIN : Role.USER,
-          },
-          update: {
-            privyDid: did,
-            walletAddress: profile.embeddedWalletAddress,
-            ...(isRootAdmin ? { role: Role.ADMIN } : {}),
-          },
-        });
+    // with that row's unique `email` constraint (P2002).
+    const existingByDid = await this.prisma.user.findUnique({ where: { privyDid: did } });
+    let user: User;
+    if (existingByDid) {
+      user = await this.prisma.user.update({
+        where: { privyDid: did },
+        data: {
+          email,
+          walletAddress: profile.embeddedWalletAddress,
+          ...(isRootAdmin ? { role: Role.ADMIN } : {}),
+        },
+      });
+    } else {
+      const existingByEmail = await this.prisma.user.findUnique({ where: { email } });
+      if (existingByEmail && !existingByEmail.privyDid.startsWith(SEED_PRIVY_DID_PREFIX)) {
+        // A real row already owns this email under a different privyDid.
+        // Never silently reassign an existing account to a new login —
+        // that's an account-takeover surface, not a seed-collision fix.
+        this.logger.error(
+          `Refusing to adopt user ${existingByEmail.id} (${email}): ` +
+            `existing privyDid does not match this login and isn't a seed placeholder`,
+        );
+        throw new ConflictException(
+          'An account already exists for this email under a different login. Contact support.',
+        );
+      }
+      // Either brand new, or only a seed-mvp.ts placeholder holds this
+      // email — safe to create/claim, mirroring how seed-mvp.ts already
+      // handles the opposite ordering (real user first, seed run after,
+      // its own upsert-by-email no-ops against the real row).
+      user = await this.prisma.user.upsert({
+        where: { email },
+        create: {
+          privyDid: did,
+          email,
+          walletAddress: profile.embeddedWalletAddress,
+          role: isRootAdmin ? Role.ADMIN : Role.USER,
+        },
+        update: {
+          privyDid: did,
+          walletAddress: profile.embeddedWalletAddress,
+          ...(isRootAdmin ? { role: Role.ADMIN } : {}),
+        },
+      });
+    }
 
     // Mark invite consumed / self-heal root admin whitelist entry
     if (entry && !entry.usedAt) {
