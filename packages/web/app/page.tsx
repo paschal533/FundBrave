@@ -192,7 +192,7 @@ export default function HomePage() {
         The translucent glass background/border is unchanged — only the text
         color moved off text-white.
       */}
-      <section className="bg-[var(--gradient-cta)] px-4 py-16 text-center sm:py-24">
+      <section className="bg-[image:var(--gradient-cta)] px-4 py-16 text-center sm:py-24">
         <h2 className="font-display text-3xl font-bold text-[var(--color-primary-foreground)] sm:text-4xl">
           Ready to raise funds for what matters?
         </h2>
