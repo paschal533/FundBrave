@@ -104,16 +104,36 @@ export default function HomePage() {
         own background/overlay/text-white classes need no `dark:` variants
         for this (they're already theme-independent literal values).
 
-        The "Start a campaign" button below is the one exception: it DOES
-        need explicit `dark:` overrides even though the values are
-        identical to the light ones. Live verification (Step 5) showed
-        that without them, the Button component's own `secondary` variant
-        (components/ui/button.tsx) ships built-in
-        `dark:bg-[var(--color-primary-900)]` etc., which wins the cascade
-        in dark mode and made the button render brownish instead of the
-        intended glass style — breaking the "identical in both themes"
-        requirement. So the dark: classes here aren't redundant, they're
-        required to defeat the base component's theme-aware default.
+        Two more theme-parity gotchas found and fixed during live
+        verification (Step 5), both because pieces reused from
+        components/ui/button.tsx and design tokens are themselves
+        theme-aware, unlike the section's own literal classes:
+
+        1. The "Start a campaign" button needs explicit `dark:` overrides
+           even though the values are identical to the light ones. Without
+           them, the Button component's `secondary` variant ships built-in
+           `dark:bg-[var(--color-primary-900)]` etc., which wins the
+           cascade in dark mode and rendered the button brownish instead
+           of the intended glass style.
+
+        2. The H1 gradient and the "Explore campaigns" button's `primary`
+           variant both used `var(--color-primary)` / `--color-primary-600`
+           for their gradient stops. `--color-primary` resolves to
+           `--primary`, which globals.css redefines inside `.dark`
+           (`--primary-400`, #ff9668) while `--primary-600` is never
+           overridden — so the gradient's start color silently shifted
+           between themes while the end color didn't. Fixed by hardcoding
+           both gradients to the light-mode hex values (#ff8a5c / #e06a3c)
+           directly instead of the theme-aware vars: this preserves
+           today's light-mode look and makes dark mode match it. The
+           "Explore campaigns" override lives in a `className` on this one
+           instance only — the shared Button component's `primary` variant
+           is untouched, since changing it would affect every primary
+           button site-wide.
+
+        In both cases the dark: classes/hardcoded values aren't redundant,
+        they're required to defeat theme-aware defaults inherited from
+        shared components/tokens.
 
         alt="" on the hero photo is correct here (distinct from the
         CampaignCard alt="" finding from the prior redesign review): this
@@ -133,7 +153,7 @@ export default function HomePage() {
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
         <div className="relative z-20 flex flex-col items-center gap-6">
           <h1 className="font-display text-5xl font-bold tracking-tight sm:text-7xl">
-            <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent">
+            <span className="bg-[linear-gradient(90deg,#ff8a5c_0%,#e06a3c_100%)] bg-clip-text text-transparent">
               FundBrave
             </span>
           </h1>
@@ -142,7 +162,11 @@ export default function HomePage() {
             communities.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg">
+            <Button
+              asChild
+              size="lg"
+              className="bg-[linear-gradient(90deg,#ff8a5c_0%,#e06a3c_100%)] dark:bg-[linear-gradient(90deg,#ff8a5c_0%,#e06a3c_100%)]"
+            >
               <Link href="/campaigns">
                 Explore campaigns
                 <ArrowRight size={18} aria-hidden="true" />
@@ -152,7 +176,7 @@ export default function HomePage() {
               asChild
               size="lg"
               variant="secondary"
-              className="border-white bg-white/15 text-[var(--color-primary-foreground)] hover:bg-white/25 dark:border-white dark:bg-white/15 dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/25"
+              className="border-white bg-white/15 text-[var(--color-primary-foreground)] hover:bg-white/25 active:bg-white/30 dark:border-white dark:bg-white/15 dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/25 dark:active:bg-white/30"
             >
               <Link href="/auth/login">Start a campaign</Link>
             </Button>
