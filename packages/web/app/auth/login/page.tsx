@@ -3,7 +3,7 @@ import { LoginScreen } from "@/components/auth/LoginScreen";
 
 export const metadata: Metadata = {
   title: "Sign in | FundBrave",
-  description: "Sign in to FundBrave with your email or Google account.",
+  description: "Sign in to FundBrave with your email.",
 };
 
 export default function LoginPage() {

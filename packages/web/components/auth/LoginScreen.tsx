@@ -37,8 +37,8 @@ export function LoginScreen() {
           Sign in to continue
         </h2>
         <p className="mx-auto max-w-sm text-text-secondary">
-          Invite-only beta. Use your email or Google account — we create a
-          wallet for you automatically.
+          Invite-only beta. Sign in with your email and we create a wallet
+          for you automatically.
         </p>
       </div>
 
