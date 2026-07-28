@@ -195,7 +195,7 @@ export default function HomePage() {
         overlay opacity if needed — a CSS overlay can't be proven safe for
         an arbitrary future image, only for the one actually shipped.
       */}
-      <section className="relative flex min-h-[85vh] flex-col items-center justify-center gap-6 overflow-hidden px-4 text-center">
+      <section className="relative left-1/2 w-screen -ml-[50vw] flex min-h-[85vh] flex-col items-center justify-center gap-6 overflow-hidden px-4 text-center">
         <CampaignImage src={HERO_IMAGE_URL} alt="" priority sizes="100vw" />
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
         <div className="relative z-20 flex flex-col items-center gap-6">
