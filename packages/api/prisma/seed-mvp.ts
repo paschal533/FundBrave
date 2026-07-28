@@ -82,7 +82,7 @@ const CAMPAIGNS: SeedCampaign[] = [
     slug: "books-laptops-ilorin-community-school",
     title: "Books & Laptops for Ilorin Community School",
     description:
-      "Olorunda Community Primary School in Ilorin serves over 400 children, but the library has fewer than 50 usable textbooks and not a single working computer. This campaign funds a starter set of laptops, a printer, and a full run of primary-level textbooks so every classroom has the basics it needs for the new term. Every donation — big or small — goes straight to procurement, delivered and photographed by our on-the-ground volunteer coordinator.",
+      "Olorunda Community Primary School in Ilorin serves over 400 children, but the library has fewer than 50 usable textbooks and not a single working computer. This campaign funds a starter set of laptops, a printer, and a full run of primary-level textbooks so every classroom has the basics it needs for the new term. Every donation, big or small, goes straight to procurement, delivered and photographed by our on-the-ground volunteer coordinator.",
     category: "education",
     goalUsd: "8000.00",
     raisedUsd: "7600.00", // near-fully-funded (95%)
@@ -112,7 +112,7 @@ const CAMPAIGNS: SeedCampaign[] = [
   },
   {
     slug: "flood-relief-lagos-mainland",
-    title: "Flood Relief Fund — Lagos Mainland",
+    title: "Flood Relief Fund for Lagos Mainland",
     description:
       "Last week's flooding displaced more than 300 families across Lagos Mainland, many of whom lost bedding, cooking equipment, and clean water access overnight. This fund provides emergency shelter kits, water purification tablets, and hot meals through our partner community kitchen while families wait for the water to recede and begin repairs. We're posting daily distribution updates on the campaign page.",
     category: "disaster-relief",
@@ -130,7 +130,7 @@ const CAMPAIGNS: SeedCampaign[] = [
     slug: "rebuild-abeokuta-youth-center",
     title: "Rebuild the Abeokuta Youth Center",
     description:
-      "The Abeokuta Youth Center's roof collapsed during the last storm season, closing the only free after-school space for over 200 local teenagers. We're rebuilding with a stronger roof, repainting the hall, and replacing the furniture that was damaged. The center runs free tutoring, a small library, and weekend sports leagues — all of it on hold until the building reopens.",
+      "The Abeokuta Youth Center's roof collapsed during the last storm season, closing the only free after-school space for over 200 local teenagers. We're rebuilding with a stronger roof, repainting the hall, and replacing the furniture that was damaged. The center runs free tutoring, a small library, and weekend sports leagues, all of it on hold until the building reopens.",
     category: "community",
     goalUsd: "12000.00",
     raisedUsd: "6300.00", // 52.5%

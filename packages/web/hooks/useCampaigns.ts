@@ -201,7 +201,7 @@ function putWithProgress(
       if (xhr.status >= 200 && xhr.status < 300) resolve();
       else reject(new Error(`Upload failed (HTTP ${xhr.status})`));
     };
-    xhr.onerror = () => reject(new Error("Upload failed — network error"));
+    xhr.onerror = () => reject(new Error("Upload failed: network error"));
     xhr.onabort = () => reject(new Error("Upload cancelled"));
     xhr.send(file);
   });

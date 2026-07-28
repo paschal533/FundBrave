@@ -167,7 +167,7 @@ export function WithdrawModal({
           <CheckCircle2 size={48} className="text-brave-mint" aria-hidden="true" />
           <div>
             <p className="text-base font-semibold text-foreground">
-              Signed — awaiting admin approval
+              Signed, awaiting admin approval
             </p>
             <p className="mt-1 text-sm text-text-secondary">
               Your withdrawal needs a second signature from the FundBrave admin.
@@ -317,7 +317,7 @@ export function WithdrawModal({
           <div className="rounded-xl border border-white/10 bg-surface-sunken px-4 py-3">
             <p className="text-xs text-text-tertiary">Funds go to your wallet</p>
             <p className="mt-0.5 truncate font-mono text-sm text-foreground">
-              {destination ? truncateWalletAddress(destination) : "—"}
+              {destination ? truncateWalletAddress(destination) : "Not set"}
             </p>
           </div>
 

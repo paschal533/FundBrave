@@ -330,7 +330,7 @@ function CampaignsContent() {
           Explore campaigns
         </h1>
         <p className="mt-1 text-text-secondary">
-          Discover causes and support them directly — funds go straight to
+          Discover causes and support them directly. Funds go straight to
           each campaign&apos;s own vault.
         </p>
       </header>

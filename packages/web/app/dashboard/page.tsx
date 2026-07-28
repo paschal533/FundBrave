@@ -73,7 +73,7 @@ function MyCampaignRow({ campaign }: { campaign: Campaign }) {
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
         showToast(
-          `${err.message} Your draft is saved — you can retry publishing anytime.`,
+          `${err.message} Your draft is saved. You can retry publishing anytime.`,
           "error",
           9000
         );

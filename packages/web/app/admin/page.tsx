@@ -237,7 +237,7 @@ function ModerationRow({
           )}
         </div>
         <p className="mt-0.5 text-xs text-text-tertiary">
-          {c.creator?.username ? `@${c.creator.username}` : c.creator?.email ?? "—"} ·{" "}
+          {c.creator?.username ? `@${c.creator.username}` : c.creator?.email ?? "N/A"} ·{" "}
           {c.category} · {c.donorsCount} donors
         </p>
       </div>
@@ -290,7 +290,7 @@ function WithdrawalsTab() {
         <div className="flex items-start gap-2 rounded-xl border border-brave-amber/30 bg-brave-amber/10 p-3 text-sm text-brave-amber">
           <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
           <p>
-            Wallet approvals are disabled — set{" "}
+            Wallet approvals are disabled. Set{" "}
             <code className="font-mono">NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID</code> to co-sign
             withdrawals.
           </p>

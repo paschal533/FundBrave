@@ -108,7 +108,7 @@ function MediaGallery({
               ) : (
                 <CampaignImage
                   src={item.url}
-                  alt={`${title} — media ${index + 1}`}
+                  alt={`${title}, media ${index + 1}`}
                   sizes="96px"
                 />
               )}
@@ -270,7 +270,7 @@ export default function CampaignDetailPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
         showToast(
-          `${err.message} Your draft is saved — you can retry publishing anytime.`,
+          `${err.message} Your draft is saved. You can retry publishing anytime.`,
           "error",
           9000
         );
@@ -292,7 +292,7 @@ export default function CampaignDetailPage() {
       {campaign.status === "DRAFT" && campaign.isOwner && (
         <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-brave-amber/30 bg-brave-amber/10 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-brave-amber">
-            This is a draft — publish it from your dashboard to start
+            This is a draft. Publish it from your dashboard to start
             receiving donations.
             {!hasImage && " Add at least one image before publishing."}
           </p>

@@ -64,7 +64,8 @@ export default function RequestAccessPage() {
           </h1>
           <p className="text-text-secondary">
             FundBrave is in an invite-only beta. Access is granted manually by
-            the team — no action needed on your side. We will let you in soon.
+            the team, so no action is needed on your side. We will let you in
+            soon.
           </p>
         </div>
 

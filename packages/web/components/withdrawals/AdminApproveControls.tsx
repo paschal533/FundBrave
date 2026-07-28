@@ -64,7 +64,7 @@ export function AdminApproveControls({
       }
       const signature = await signTypedDataAsync(toSignArgs(typedData));
       await adminSign.mutateAsync({ id, signature });
-      showToast("Approved — executing on-chain", "success", 6000);
+      showToast("Approved, executing on-chain", "success", 6000);
     } catch (err) {
       const msg =
         err instanceof ApiError

@@ -454,7 +454,7 @@ function CreateCampaignWizard() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
         showToast(
-          `${err.message} Your draft is saved — you can retry publishing anytime.`,
+          `${err.message} Your draft is saved. You can retry publishing anytime.`,
           "error",
           9000
         );
@@ -605,7 +605,7 @@ function CreateCampaignWizard() {
 
       {isLive && (
         <p className="mt-6 rounded-xl border border-brave-amber/30 bg-brave-amber/10 px-4 py-3 text-sm text-brave-amber">
-          This campaign is live — only the story and media can be edited.
+          This campaign is live. Only the story and media can be edited.
         </p>
       )}
 
@@ -993,7 +993,7 @@ function CreateCampaignWizard() {
                 <div>
                   <dt className="text-text-tertiary">Goal</dt>
                   <dd className="mt-0.5 font-semibold text-foreground">
-                    {form.goalUsd ? formatUsd(form.goalUsd) : "—"}
+                    {form.goalUsd ? formatUsd(form.goalUsd) : "Not set"}
                   </dd>
                 </div>
                 <div>
