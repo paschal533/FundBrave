@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-27
 **Author:** Claude (with paschal533)
-**Status:** Approved for planning
+**Status:** Implemented
 **Related:** `docs/superpowers/specs/2026-07-26-web-mvp-redesign-design.md`, Figma file `FundBrave/Logos` (frame "Onboarding", node 467:6)
 
 ## 1. Problem
