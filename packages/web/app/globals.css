@@ -363,12 +363,14 @@
     background: rgba(255, 138, 92, 0.8);
   }
 
-  /* Progress bar gradient */
+  /* Progress bar gradient — reconciled to the mint/success token (not
+     primary/coral) so donation progress reads as a distinct "success"
+     signal, separate from the brand color used everywhere else. */
   .bg-progress-gradient {
     background: linear-gradient(
       150deg,
-      var(--primary-500) 0%,
-      var(--primary-300) 100%
+      var(--brave-mint-dark) 0%,
+      var(--brave-mint) 100%
     );
   }
 
