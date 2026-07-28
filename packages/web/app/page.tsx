@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useCampaignsList } from "@/hooks/useCampaigns";
@@ -40,17 +41,21 @@ const HOW_IT_WORKS = [
   },
 ] as const;
 
+const CAUSES_INITIAL_LIMIT = 9;
+const CAUSES_PAGE_SIZE = 9;
+
 function FeaturedCampaigns() {
-  const { data, isLoading, isError, refetch } = useCampaignsList({
+  const [limit, setLimit] = useState(CAUSES_INITIAL_LIMIT);
+  const { data, isLoading, isFetching, isError, refetch } = useCampaignsList({
     page: 1,
-    limit: 3,
+    limit,
     sort: "most_raised",
   });
 
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
+        {Array.from({ length: CAUSES_INITIAL_LIMIT }).map((_, i) => (
           <CampaignCardSkeleton key={i} />
         ))}
       </div>
@@ -84,12 +89,28 @@ function FeaturedCampaigns() {
     );
   }
 
+  const hasMore = data.items.length < data.total;
+
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {data.items.map((campaign) => (
-        <CampaignCard key={campaign.id} campaign={campaign} />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {data.items.map((campaign) => (
+          <CampaignCard key={campaign.id} campaign={campaign} />
+        ))}
+      </div>
+      {hasMore && (
+        <div className="mt-8 flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setLimit((l) => l + CAUSES_PAGE_SIZE)}
+            loading={isFetching}
+            loadingText="Loading..."
+          >
+            Show more
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -206,7 +227,7 @@ export default function HomePage() {
       <section className="mx-auto w-full max-w-5xl px-4 py-16 sm:py-24">
         <div className="mb-10 flex items-center justify-between">
           <h2 className="text-3xl font-bold text-foreground">
-            Campaigns making progress
+            Campaigns making an impact
           </h2>
           <Link
             href="/campaigns"
