@@ -6,10 +6,21 @@ import { useCampaignsList } from "@/hooks/useCampaigns";
 import {
   CampaignCard,
   CampaignCardSkeleton,
+  CampaignImage,
   CATEGORY_ICONS,
 } from "@/components/campaigns/CampaignCard";
 import { CATEGORIES } from "@/lib/campaigns";
 import { ArrowRight, Wallet, Rocket, Shield } from "@/components/ui/icons";
+
+/**
+ * Sourced placeholder (warm, documentary-style, license-clean Unsplash
+ * photo) for the hero background — swap this one constant for the real
+ * asset when it's supplied. Not currently used elsewhere on the site
+ * (seeded campaign images use different photo IDs), so it won't visually
+ * duplicate a card in the causes grid below it.
+ */
+const HERO_IMAGE_URL =
+  "https://images.unsplash.com/photo-1509099836639-18ba1795216d?auto=format&fit=crop&w=1920&q=80";
 
 const HOW_IT_WORKS = [
   {
@@ -86,25 +97,66 @@ export default function HomePage() {
   return (
     <main id="main-content" className="flex flex-col">
       {/* ============================== HERO ============================== */}
-      <section className="flex min-h-[85vh] flex-col items-center justify-center gap-6 px-4 text-center">
-        <h1 className="font-display text-5xl font-bold tracking-tight sm:text-7xl">
-          <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent">
-            FundBrave
-          </span>
-        </h1>
-        <p className="max-w-md text-lg text-text-secondary">
-          Borderless fundraising, powered by crypto and owned by communities.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button asChild size="lg">
-            <Link href="/campaigns">
-              Explore campaigns
-              <ArrowRight size={18} aria-hidden="true" />
-            </Link>
-          </Button>
-          <Button asChild size="lg" variant="secondary">
-            <Link href="/auth/login">Start a campaign</Link>
-          </Button>
+      {/*
+        Fixed-dark treatment: always dark regardless of the site's
+        light/dark toggle, matching the closing CTA band's approach of
+        overriding page theme for a specific brand moment. The section's
+        own background/overlay/text-white classes need no `dark:` variants
+        for this (they're already theme-independent literal values).
+
+        The "Start a campaign" button below is the one exception: it DOES
+        need explicit `dark:` overrides even though the values are
+        identical to the light ones. Live verification (Step 5) showed
+        that without them, the Button component's own `secondary` variant
+        (components/ui/button.tsx) ships built-in
+        `dark:bg-[var(--color-primary-900)]` etc., which wins the cascade
+        in dark mode and made the button render brownish instead of the
+        intended glass style — breaking the "identical in both themes"
+        requirement. So the dark: classes here aren't redundant, they're
+        required to defeat the base component's theme-aware default.
+
+        alt="" on the hero photo is correct here (distinct from the
+        CampaignCard alt="" finding from the prior redesign review): this
+        image is purely decorative background texture with no ancestor
+        control relying on it for an accessible name, unlike a campaign
+        photo inside a Link.
+
+        Overlay opacity (85/55/35%) was chosen and verified against this
+        specific placeholder photo's tones during live verification (Step
+        5). If HERO_IMAGE_URL is ever swapped for a different photo,
+        re-verify heading/tagline legibility the same way and adjust the
+        overlay opacity if needed — a CSS overlay can't be proven safe for
+        an arbitrary future image, only for the one actually shipped.
+      */}
+      <section className="relative flex min-h-[85vh] flex-col items-center justify-center gap-6 overflow-hidden px-4 text-center">
+        <CampaignImage src={HERO_IMAGE_URL} alt="" priority sizes="100vw" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
+        <div className="relative z-20 flex flex-col items-center gap-6">
+          <h1 className="font-display text-5xl font-bold tracking-tight sm:text-7xl">
+            <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent">
+              FundBrave
+            </span>
+          </h1>
+          <p className="max-w-md text-lg text-white/90">
+            Borderless fundraising, powered by crypto and owned by
+            communities.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button asChild size="lg">
+              <Link href="/campaigns">
+                Explore campaigns
+                <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="secondary"
+              className="border-white bg-white/15 text-[var(--color-primary-foreground)] hover:bg-white/25 dark:border-white dark:bg-white/15 dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/25"
+            >
+              <Link href="/auth/login">Start a campaign</Link>
+            </Button>
+          </div>
         </div>
       </section>
 
