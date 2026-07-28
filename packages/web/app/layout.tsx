@@ -3,6 +3,7 @@ import { Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -30,6 +31,7 @@ export default function RootLayout({
         <Providers>
           <Header />
           <div className="w-full mx-auto max-w-[1400px]">{children}</div>
+          <Footer />
         </Providers>
       </body>
     </html>
