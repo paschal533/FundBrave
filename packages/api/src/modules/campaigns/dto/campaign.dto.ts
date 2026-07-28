@@ -35,7 +35,10 @@ export class CampaignMediaDto {
   @IsIn(['IMAGE', 'VIDEO'])
   type!: 'IMAGE' | 'VIDEO';
 
-  @IsUrl({ require_protocol: true })
+  // require_tld: false — the local dev-fallback upload path (no S3 configured)
+  // serves media from http://localhost:<port>/..., and "localhost" has no
+  // TLD. Real S3/CDN URLs in production have a real TLD and are unaffected.
+  @IsUrl({ require_protocol: true, require_tld: false })
   @MaxLength(1000)
   url!: string;
 

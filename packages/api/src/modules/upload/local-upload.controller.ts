@@ -71,6 +71,12 @@ export class LocalUploadController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Length', info.size);
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    // helmet()'s global default (main.ts) sets Cross-Origin-Resource-Policy:
+    // same-origin on every response, which blocks the web app (a different
+    // origin — different port) from loading this image in an <img> tag.
+    // This dev-only endpoint is explicitly meant to be loaded cross-origin,
+    // so it overrides the default here rather than loosening it globally.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     createReadStream(info.path).pipe(res);
   }
 }

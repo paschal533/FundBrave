@@ -20,6 +20,8 @@ export class UpdateProfileDto {
   bio?: string;
 
   @IsOptional()
-  @IsUrl({ require_protocol: true })
+  // require_tld: false — same reasoning as CampaignMediaDto.url: local dev
+  // uploads are served from http://localhost:<port>, which has no TLD.
+  @IsUrl({ require_protocol: true, require_tld: false })
   avatarUrl?: string;
 }
