@@ -82,7 +82,10 @@ function CategorySidebar({
   onSelect: (slug: string) => void;
 }) {
   return (
-    <aside className="hidden w-56 shrink-0 md:block" aria-label="Categories">
+    <aside
+      className="hidden w-56 md:sticky md:top-20 md:block md:self-start"
+      aria-label="Categories"
+    >
       <h2 className="px-3 text-sm font-semibold tracking-wide text-text-tertiary uppercase">
         Categories
       </h2>
@@ -373,10 +376,10 @@ function CampaignsContent() {
         <MobileCategoryFilter selected={category} onSelect={selectCategory} />
       </div>
 
-      <div className="mt-6 flex gap-8">
+      <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[14rem_1fr]">
         <CategorySidebar selected={category} onSelect={selectCategory} />
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           {isLoading ? (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
