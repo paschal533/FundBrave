@@ -104,6 +104,15 @@
   --gradient-yield: linear-gradient(135deg, #4ade80 0%, #2dd4bf 100%);
   --gradient-amber: linear-gradient(135deg, #ffb454 0%, #ff8a5c 100%);
   --gradient-cta: linear-gradient(135deg, #ff8a5c 0%, #ffb454 100%);
+
+  /* Fixed brand gradient — NOT redefined in .dark. --primary itself IS
+     redefined under .dark (shifts to --primary-400) while --primary-600
+     stays fixed, so any gradient built from --primary/--primary-600
+     directly shifts its start color between themes. This token pins the
+     light-mode values so the brand wordmark gradient (header, footer,
+     hero) reads identically in both themes, matching the fixed-dark hero
+     treatment's own requirement. */
+  --gradient-brand-fixed: linear-gradient(90deg, #ff8a5c 0%, #e06a3c 100%);
 }
 
 /* Tailwind v4 CSS-first design system tokens */

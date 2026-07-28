@@ -72,7 +72,7 @@ const CAUSES_PAGE_SIZE = 9;
 
 function FeaturedCampaigns() {
   const [limit, setLimit] = useState(CAUSES_INITIAL_LIMIT);
-  const { data, isLoading, isFetching, isError, refetch } = useCampaignsList({
+  const { data, isLoading, isPlaceholderData, isError, refetch } = useCampaignsList({
     page: 1,
     limit,
     sort: "most_raised",
@@ -129,7 +129,7 @@ function FeaturedCampaigns() {
           <Button
             variant="outline"
             onClick={() => setLimit((l) => l + CAUSES_PAGE_SIZE)}
-            loading={isFetching}
+            loading={isPlaceholderData}
             loadingText="Loading..."
           >
             Show more
@@ -169,14 +169,19 @@ export default function HomePage() {
            `--primary`, which globals.css redefines inside `.dark`
            (`--primary-400`, #ff9668) while `--primary-600` is never
            overridden — so the gradient's start color silently shifted
-           between themes while the end color didn't. Fixed by hardcoding
-           both gradients to the light-mode hex values (#ff8a5c / #e06a3c)
-           directly instead of the theme-aware vars: this preserves
-           today's light-mode look and makes dark mode match it. The
-           "Explore campaigns" override lives in a `className` on this one
-           instance only — the shared Button component's `primary` variant
-           is untouched, since changing it would affect every primary
-           button site-wide.
+           between themes while the end color didn't. Fixed by pointing
+           both at the shared `--gradient-brand-fixed` token (declared once
+           in `:root` in globals.css and never redefined in `.dark`), which
+           pins the light-mode hex values (#ff8a5c / #e06a3c) so dark mode
+           matches light mode instead of duplicating the hex literals here.
+           The same token is also used by the footer's brand wordmark,
+           which had the identical bug. The "Explore campaigns" override
+           lives in a `className` on this one instance only — the shared
+           Button component's `primary` variant is untouched, since
+           changing it would affect every primary button site-wide, and it
+           needs no `dark:` override here because that variant has no
+           `dark:`-specific background class to defeat (unlike `secondary`
+           below).
 
         In both cases the dark: classes/hardcoded values aren't redundant,
         they're required to defeat theme-aware defaults inherited from
@@ -200,7 +205,7 @@ export default function HomePage() {
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
         <div className="relative z-20 flex flex-col items-center gap-6">
           <h1 className="font-display text-5xl font-bold tracking-tight sm:text-7xl">
-            <span className="bg-[linear-gradient(90deg,#ff8a5c_0%,#e06a3c_100%)] bg-clip-text text-transparent">
+            <span className="bg-[image:var(--gradient-brand-fixed)] bg-clip-text text-transparent">
               FundBrave
             </span>
           </h1>
@@ -212,7 +217,7 @@ export default function HomePage() {
             <Button
               asChild
               size="lg"
-              className="bg-[linear-gradient(90deg,#ff8a5c_0%,#e06a3c_100%)] dark:bg-[linear-gradient(90deg,#ff8a5c_0%,#e06a3c_100%)]"
+              className="bg-[image:var(--gradient-brand-fixed)]"
             >
               <Link href="/campaigns">
                 Explore campaigns

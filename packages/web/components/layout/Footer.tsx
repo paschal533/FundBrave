@@ -49,7 +49,7 @@ export function Footer() {
       <div className="mx-auto grid w-full max-w-[1400px] grid-cols-2 gap-8 sm:grid-cols-4">
         <div className="col-span-2 flex flex-col gap-2 sm:col-span-1">
           <span className="font-display text-xl font-bold tracking-tight">
-            <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent">
+            <span className="bg-[image:var(--gradient-brand-fixed)] bg-clip-text text-transparent">
               FundBrave
             </span>
           </span>
