@@ -35,7 +35,7 @@ const CTA_BENEFITS = [
   {
     icon: Lock,
     title: "No seed phrases, ever",
-    body: "Sign in with email or Google — a self-custodial wallet is created for you automatically.",
+    body: "Sign in with your email. A self-custodial wallet is created for you automatically.",
   },
   {
     icon: CheckCircle2,
@@ -45,7 +45,7 @@ const CTA_BENEFITS = [
   {
     icon: Globe,
     title: "Borderless by design",
-    body: "Give or raise from anywhere — no bank account or wire transfer required.",
+    body: "Give or raise from anywhere. No bank account or wire transfer required.",
   },
 ] as const;
 
@@ -53,7 +53,7 @@ const HOW_IT_WORKS = [
   {
     icon: Wallet,
     title: "Sign in, no seed phrase",
-    body: "Sign in with email or Google. A self-custodial wallet is created for you automatically — only you hold the key.",
+    body: "Sign in with your email. A self-custodial wallet is created for you automatically, and only you hold the key.",
   },
   {
     icon: Rocket,
@@ -63,12 +63,12 @@ const HOW_IT_WORKS = [
   {
     icon: Shield,
     title: "Funds released with you in the loop",
-    body: "Withdrawals require your signature plus platform co-approval — no single party can move donated funds alone.",
+    body: "Withdrawals require your signature plus platform co-approval. No single party can move donated funds alone.",
   },
 ] as const;
 
-const CAUSES_INITIAL_LIMIT = 9;
-const CAUSES_PAGE_SIZE = 9;
+const CAUSES_INITIAL_LIMIT = 6;
+const CAUSES_PAGE_SIZE = 6;
 
 function FeaturedCampaigns() {
   const [limit, setLimit] = useState(CAUSES_INITIAL_LIMIT);
@@ -106,7 +106,7 @@ function FeaturedCampaigns() {
   if (!data || data.items.length === 0) {
     return (
       <p className="text-center text-text-secondary">
-        No campaigns yet — be the first to{" "}
+        No campaigns yet. Be the first to{" "}
         <Link href="/auth/login" className="text-primary underline underline-offset-4">
           start one
         </Link>
@@ -345,7 +345,7 @@ export default function HomePage() {
           asChild
           size="lg"
           variant="secondary"
-          className="mt-10 border-white bg-white/15 text-[var(--color-primary-foreground)] hover:bg-white/25 dark:border-white/40 dark:bg-white/10 dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/20"
+          className="mt-10 border-white bg-white text-[var(--color-primary-foreground)] hover:bg-white/90 active:bg-white/80 dark:border-white dark:bg-white dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/90 dark:active:bg-white/80"
         >
           <Link href="/auth/login">Start a campaign</Link>
         </Button>
