@@ -11,7 +11,15 @@ import {
   CATEGORY_ICONS,
 } from "@/components/campaigns/CampaignCard";
 import { CATEGORIES } from "@/lib/campaigns";
-import { ArrowRight, Wallet, Rocket, Shield } from "@/components/ui/icons";
+import {
+  ArrowRight,
+  Wallet,
+  Rocket,
+  Shield,
+  Lock,
+  CheckCircle2,
+  Globe,
+} from "@/components/ui/icons";
 
 /**
  * Sourced placeholder (warm, documentary-style, license-clean Unsplash
@@ -22,6 +30,24 @@ import { ArrowRight, Wallet, Rocket, Shield } from "@/components/ui/icons";
  */
 const HERO_IMAGE_URL =
   "https://images.unsplash.com/photo-1509099836639-18ba1795216d?auto=format&fit=crop&w=1920&q=80";
+
+const CTA_BENEFITS = [
+  {
+    icon: Lock,
+    title: "No seed phrases, ever",
+    body: "Sign in with email or Google — a self-custodial wallet is created for you automatically.",
+  },
+  {
+    icon: CheckCircle2,
+    title: "Two signatures, every time",
+    body: "Withdrawals need your signature plus platform co-approval, so no single party can move donated funds alone.",
+  },
+  {
+    icon: Globe,
+    title: "Borderless by design",
+    body: "Give or raise from anywhere — no bank account or wire transfer required.",
+  },
+] as const;
 
 const HOW_IT_WORKS = [
   {
@@ -293,14 +319,28 @@ export default function HomePage() {
         <h2 className="font-display text-3xl font-bold text-[var(--color-primary-foreground)] sm:text-4xl">
           Ready to raise funds for what matters?
         </h2>
-        <p className="mx-auto mt-3 max-w-md text-[var(--color-primary-foreground)]/80">
-          It takes a few minutes to get started — no crypto experience required.
-        </p>
+        <div className="mx-auto mt-10 grid max-w-4xl grid-cols-1 gap-8 sm:grid-cols-3">
+          {CTA_BENEFITS.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="flex flex-col items-center gap-2 text-center">
+              <Icon
+                size={22}
+                className="text-[var(--color-primary-foreground)]"
+                aria-hidden="true"
+              />
+              <h3 className="font-semibold text-[var(--color-primary-foreground)]">
+                {title}
+              </h3>
+              <p className="text-sm text-[var(--color-primary-foreground)]/80">
+                {body}
+              </p>
+            </div>
+          ))}
+        </div>
         <Button
           asChild
           size="lg"
           variant="secondary"
-          className="mt-8 border-white bg-white/15 text-[var(--color-primary-foreground)] hover:bg-white/25 dark:border-white/40 dark:bg-white/10 dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/20"
+          className="mt-10 border-white bg-white/15 text-[var(--color-primary-foreground)] hover:bg-white/25 dark:border-white/40 dark:bg-white/10 dark:text-[var(--color-primary-foreground)] dark:hover:bg-white/20"
         >
           <Link href="/auth/login">Start a campaign</Link>
         </Button>
