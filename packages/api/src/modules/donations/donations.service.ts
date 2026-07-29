@@ -1,9 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CampaignStatus, DonationStatus, Prisma } from '@prisma/client';
-import { formatUnits, type Hex, type PublicClient } from 'viem';
+import { decodeEventLog, formatUnits, parseAbiItem, type Hex, type PublicClient } from 'viem';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PricingService } from './pricing.service';
 import { findToken } from './tokens.config';
+
+const TRANSFER_EVENT = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 value)');
 
 export interface IncomingTransfer {
   chainId: number;
@@ -104,10 +106,11 @@ export class DonationsService {
    * Promote DETECTED donations to CONFIRMED once enough blocks have passed.
    * Called by the indexing cron with the latest block per chain.
    *
-   * When a chain client is provided we re-verify the transaction receipt
-   * on-chain before counting the donation. This defends against a webhook
-   * that delivered a tx which was later dropped/replaced or orphaned by a
-   * reorg — such a tx has no canonical success receipt and stays DETECTED.
+   * When a chain client is provided we re-verify the actual transfer on
+   * receipt logs (ERC-20) or the transaction itself (native) — not just
+   * that some transaction with this hash succeeded. This is the only
+   * defense against a webhook (or any future donation-recording path)
+   * claiming an amount/recipient that was never actually transferred.
    */
   async confirmDonations(
     chainId: number,
@@ -115,24 +118,37 @@ export class DonationsService {
     confirmations: number,
     client?: PublicClient,
   ): Promise<number> {
+    const MAX_ATTEMPTS = 20;
     const eligible = await this.prisma.donation.findMany({
       where: {
         chainId,
         status: DonationStatus.DETECTED,
         blockNumber: { lte: latestBlock - confirmations },
       },
+      orderBy: { blockNumber: 'asc' },
+      include: { campaign: { select: { safeAddress: true } } },
       take: 100,
     });
 
     let confirmed = 0;
     for (const d of eligible) {
-      // Re-verify the tx is still canonical and succeeded.
       if (client) {
-        const ok = await this.isReceiptCanonical(client, d.txHash as Hex, latestBlock, confirmations);
-        if (!ok) continue; // dropped / reorged / reverted → leave DETECTED
+        const ok = await this.isRealTransfer(client, d, latestBlock, confirmations);
+        if (!ok) {
+          const attempts = d.attempts + 1;
+          if (attempts >= MAX_ATTEMPTS) {
+            await this.prisma.donation.update({
+              where: { id: d.id },
+              data: { status: DonationStatus.ORPHANED, attempts },
+            });
+            this.logger.warn(`Donation ${d.id} (tx ${d.txHash}) orphaned after ${attempts} failed confirmation attempts`);
+          } else {
+            await this.prisma.donation.update({ where: { id: d.id }, data: { attempts } });
+          }
+          continue;
+        }
       }
 
-      // Re-price if ingestion couldn't price it
       let amountUsd = d.amountUsd;
       if (amountUsd.lte(0)) {
         const token = findToken(d.chainId, d.tokenAddress);
@@ -142,7 +158,7 @@ export class DonationsService {
           const amount = Number(formatUnits(BigInt(d.amountRaw), token.decimals));
           amountUsd = new Prisma.Decimal((amount * price).toFixed(2));
         } catch {
-          continue; // still unpriceable — try next cycle
+          continue;
         }
       }
 
@@ -174,19 +190,47 @@ export class DonationsService {
     return confirmed;
   }
 
-  /** True only if the tx has a successful receipt buried under enough confirmations. */
-  private async isReceiptCanonical(
+  /**
+   * True only if: the tx has a successful receipt buried under enough
+   * confirmations, AND the receipt/transaction independently shows the
+   * exact transfer this donation row claims (amount, token, recipient).
+   * The webhook-supplied blockNumber is never trusted for this check —
+   * depth is computed from the receipt's own blockNumber.
+   */
+  private async isRealTransfer(
     client: PublicClient,
-    txHash: Hex,
+    d: { txHash: string; logIndex: number; tokenAddress: string | null; amountRaw: string; campaign: { safeAddress: string } },
     latestBlock: number,
     confirmations: number,
   ): Promise<boolean> {
     try {
-      const receipt = await client.getTransactionReceipt({ hash: txHash });
+      const receipt = await client.getTransactionReceipt({ hash: d.txHash as Hex });
       if (receipt.status !== 'success') return false;
-      return latestBlock - Number(receipt.blockNumber) >= confirmations;
+      if (latestBlock - Number(receipt.blockNumber) < confirmations) return false;
+
+      const safeAddress = d.campaign.safeAddress.toLowerCase();
+
+      if (d.tokenAddress) {
+        const log = receipt.logs.find((l) => l.logIndex === d.logIndex);
+        if (!log || log.address.toLowerCase() !== d.tokenAddress.toLowerCase()) return false;
+        try {
+          const decoded = decodeEventLog({ abi: [TRANSFER_EVENT], data: log.data, topics: log.topics });
+          return (
+            decoded.args.to.toLowerCase() === safeAddress &&
+            decoded.args.value === BigInt(d.amountRaw)
+          );
+        } catch {
+          return false;
+        }
+      }
+
+      const tx = await client.getTransaction({ hash: d.txHash as Hex });
+      return (
+        !!tx.to &&
+        tx.to.toLowerCase() === safeAddress &&
+        tx.value === BigInt(d.amountRaw)
+      );
     } catch {
-      // Receipt not found = tx dropped/replaced or never mined on this chain.
       return false;
     }
   }
