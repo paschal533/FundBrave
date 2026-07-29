@@ -11,6 +11,9 @@ const TRANSFER_EVENT = parseAbiItem('event Transfer(address indexed from, addres
 const SAFE_ADDRESS = '0x0000000000000000000000000000000000005afe';
 const TOKEN_ADDRESS = '0x000000000000000000000000000000000000c0de';
 const DONOR = '0x0000000000000000000000000000000000000d0e';
+// A different campaign's Safe — used to prove cross-campaign misattribution
+// (a real transfer to someone else's Safe) is rejected, not just fabricated amounts.
+const OTHER_SAFE_ADDRESS = '0x0000000000000000000000000000000000ba0bab';
 
 function erc20TransferLog(logIndex: number, to: string, value: bigint) {
   const topics = encodeEventTopics({
@@ -151,5 +154,113 @@ describe('DonationsService.confirmDonations — receipt verification', () => {
       getTransaction: jest.fn().mockResolvedValue({ to: SAFE_ADDRESS, value: 1n }),
     } as any;
     expect(await service.confirmDonations(11155111, 100, 5, badClient)).toBe(0);
+  });
+
+  it('does NOT confirm when the real transfer went to a different address than this campaign\'s safe (cross-campaign misattribution)', async () => {
+    const client = {
+      getTransactionReceipt: jest.fn().mockResolvedValue({
+        status: 'success',
+        blockNumber: 90n,
+        // Real receipt, exact amount match — but the recipient is a
+        // DIFFERENT campaign's Safe, not this donation's campaign.safeAddress.
+        // Deleting the recipient check from the implementation would make
+        // this test (falsely) pass, since the amount matches exactly.
+        logs: [erc20TransferLog(0, OTHER_SAFE_ADDRESS, 1_000_000n)],
+      }),
+    } as any;
+
+    const confirmed = await service.confirmDonations(11155111, 100, 5, client);
+
+    expect(confirmed).toBe(0);
+    expect(prisma.campaign.update).not.toHaveBeenCalled();
+    expect(prisma.donation.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: DonationStatus.CONFIRMED }) }),
+    );
+  });
+
+  it('does NOT confirm when the receipt block is not yet deep enough, even if the stored blockNumber looks eligible', async () => {
+    // The stored (webhook-supplied) blockNumber must never be trusted for
+    // the depth check — only the receipt's own blockNumber counts. Use a
+    // stored blockNumber far in the past (which would pass any eligibility
+    // filter) alongside a receipt.blockNumber that is still within the
+    // confirmation window. If the implementation ever reverts to trusting
+    // `d.blockNumber` for depth, this test starts (falsely) confirming.
+    const donation = { ...baseDonation, blockNumber: 1 };
+    prisma.donation.findMany.mockResolvedValue([donation]);
+
+    const client = {
+      getTransactionReceipt: jest.fn().mockResolvedValue({
+        status: 'success',
+        blockNumber: 99n, // latestBlock(100) - 99 = 1 confirmation, need 5
+        logs: [erc20TransferLog(0, SAFE_ADDRESS, 1_000_000n)],
+      }),
+    } as any;
+
+    const confirmed = await service.confirmDonations(11155111, 100, 5, client);
+
+    expect(confirmed).toBe(0);
+    expect(prisma.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it('does NOT touch attempts and does NOT confirm when verification cannot run at all (RPC/network error) — treated as transient, not a mismatch', async () => {
+    const client = {
+      getTransactionReceipt: jest.fn().mockRejectedValue(new Error('ETIMEDOUT: RPC request timed out')),
+    } as any;
+
+    const confirmed = await service.confirmDonations(11155111, 100, 5, client);
+
+    expect(confirmed).toBe(0);
+    // The load-bearing assertion: a thrown RPC error must not touch the
+    // donation row at all (no attempts bump, no status change) — otherwise
+    // an RPC outage would accumulate the same penalty as a real fabricated
+    // claim and could eventually orphan a legitimate, fully-funded donation.
+    expect(prisma.donation.update).not.toHaveBeenCalled();
+    expect(prisma.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it('never orphans a donation from repeated RPC failures alone, across many poll cycles', async () => {
+    const client = {
+      getTransactionReceipt: jest.fn().mockRejectedValue(new Error('rate limited')),
+    } as any;
+
+    // Well past MAX_ATTEMPTS (20) worth of poll cycles — if RPC failures
+    // incremented `attempts` the way a real mismatch does, this donation
+    // would have been ORPHANED long before cycle 25.
+    for (let i = 0; i < 25; i++) {
+      // eslint-disable-next-line no-await-in-loop
+      await service.confirmDonations(11155111, 100, 5, client);
+    }
+
+    expect(prisma.donation.update).not.toHaveBeenCalled();
+  });
+
+  it('does not let one row\'s DB failure abort verification of the rest of the batch', async () => {
+    const badDonation = { ...baseDonation, id: 'd-bad', txHash: '0xbad' };
+    const goodDonation = { ...baseDonation, id: 'd-good', txHash: '0xgood' };
+    prisma.donation.findMany.mockResolvedValue([badDonation, goodDonation]);
+
+    // Persisting the failed-attempt counter for the bad row fails (e.g. a
+    // transient DB error) — this must not prevent the good row, later in
+    // the same batch, from being verified and confirmed.
+    prisma.donation.update.mockImplementation((args: any) => {
+      if (args.where.id === 'd-bad') return Promise.reject(new Error('DB connection lost'));
+      return Promise.resolve();
+    });
+
+    const client = {
+      getTransactionReceipt: jest.fn().mockImplementation(({ hash }: { hash: string }) => {
+        if (hash === '0xbad') {
+          // Fabricated: real receipt, wrong amount.
+          return Promise.resolve({ status: 'success', blockNumber: 90n, logs: [erc20TransferLog(0, SAFE_ADDRESS, 1n)] });
+        }
+        // Genuine: real receipt, exact matching transfer.
+        return Promise.resolve({ status: 'success', blockNumber: 90n, logs: [erc20TransferLog(0, SAFE_ADDRESS, 1_000_000n)] });
+      }),
+    } as any;
+
+    const confirmed = await service.confirmDonations(11155111, 100, 5, client);
+
+    expect(confirmed).toBe(1);
+    expect(prisma.campaign.update).toHaveBeenCalledTimes(1);
   });
 });

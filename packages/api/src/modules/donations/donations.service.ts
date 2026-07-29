@@ -7,6 +7,10 @@ import { findToken } from './tokens.config';
 
 const TRANSFER_EVENT = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 value)');
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export interface IncomingTransfer {
   chainId: number;
   txHash: string;
@@ -111,6 +115,16 @@ export class DonationsService {
    * that some transaction with this hash succeeded. This is the only
    * defense against a webhook (or any future donation-recording path)
    * claiming an amount/recipient that was never actually transferred.
+   *
+   * `isRealTransfer` throws when verification could not run at all (RPC
+   * timeout, rate limit, node outage) and only returns `false` when it ran
+   * successfully and found a genuine mismatch. Those two cases are handled
+   * differently below: a thrown error skips the donation this cycle with no
+   * penalty (transient — retried next poll), while a `false` result counts
+   * as a real failed attempt that can eventually orphan the row. Without this
+   * split, a run of RPC hiccups would accumulate the same `attempts` counter
+   * as genuine fabricated claims and could permanently orphan a real,
+   * legitimately-funded donation.
    */
   async confirmDonations(
     chainId: number,
@@ -133,17 +147,40 @@ export class DonationsService {
     let confirmed = 0;
     for (const d of eligible) {
       if (client) {
-        const ok = await this.isRealTransfer(client, d, latestBlock, confirmations);
-        if (!ok) {
+        let verification: { ok: boolean; reason: string };
+        try {
+          verification = await this.isRealTransfer(client, d, latestBlock, confirmations);
+        } catch (err) {
+          // Verification could not run this cycle — do NOT touch `attempts`.
+          // Leave the donation exactly as-is; the next poll will retry.
+          this.logger.warn(
+            `Donation ${d.id} (tx ${d.txHash}): could not verify this cycle (RPC/network error), will retry: ${errorMessage(err)}`,
+          );
+          continue;
+        }
+
+        if (!verification.ok) {
           const attempts = d.attempts + 1;
-          if (attempts >= MAX_ATTEMPTS) {
-            await this.prisma.donation.update({
-              where: { id: d.id },
-              data: { status: DonationStatus.ORPHANED, attempts },
-            });
-            this.logger.warn(`Donation ${d.id} (tx ${d.txHash}) orphaned after ${attempts} failed confirmation attempts`);
-          } else {
-            await this.prisma.donation.update({ where: { id: d.id }, data: { attempts } });
+          try {
+            if (attempts >= MAX_ATTEMPTS) {
+              await this.prisma.donation.update({
+                where: { id: d.id },
+                data: { status: DonationStatus.ORPHANED, attempts },
+              });
+              this.logger.warn(
+                `Donation ${d.id} (tx ${d.txHash}) orphaned after ${attempts} failed confirmation attempts — last reason: ${verification.reason}`,
+              );
+            } else {
+              await this.prisma.donation.update({ where: { id: d.id }, data: { attempts } });
+              this.logger.warn(
+                `Donation ${d.id} (tx ${d.txHash}) failed verification (attempt ${attempts}/${MAX_ATTEMPTS}): ${verification.reason}`,
+              );
+            }
+          } catch (err) {
+            // Don't let one row's DB failure abort the rest of the batch.
+            this.logger.error(
+              `Donation ${d.id}: failed to persist failed-attempt counter, will retry next cycle: ${errorMessage(err)}`,
+            );
           }
           continue;
         }
@@ -191,48 +228,77 @@ export class DonationsService {
   }
 
   /**
-   * True only if: the tx has a successful receipt buried under enough
-   * confirmations, AND the receipt/transaction independently shows the
-   * exact transfer this donation row claims (amount, token, recipient).
-   * The webhook-supplied blockNumber is never trusted for this check —
-   * depth is computed from the receipt's own blockNumber.
+   * Verifies that the receipt/transaction independently shows the exact
+   * transfer this donation row claims (amount, token, recipient), buried
+   * under enough confirmations. The webhook-supplied blockNumber is never
+   * trusted for the depth check — depth is computed from the receipt's own
+   * blockNumber.
+   *
+   * IMPORTANT: this method intentionally does NOT catch errors thrown by
+   * `client.getTransactionReceipt` / `client.getTransaction` (RPC timeouts,
+   * rate limits, node outages, "not found" while a node is still catching
+   * up). Those propagate to the caller, which must treat them as "could not
+   * verify this cycle" — not as a mismatch. Only a call that completed
+   * successfully but produced data that doesn't match the donation's claim
+   * resolves as `{ ok: false }`, since that's the only case that should ever
+   * count as a real failed attempt.
    */
   private async isRealTransfer(
     client: PublicClient,
     d: { txHash: string; logIndex: number; tokenAddress: string | null; amountRaw: string; campaign: { safeAddress: string } },
     latestBlock: number,
     confirmations: number,
-  ): Promise<boolean> {
-    try {
-      const receipt = await client.getTransactionReceipt({ hash: d.txHash as Hex });
-      if (receipt.status !== 'success') return false;
-      if (latestBlock - Number(receipt.blockNumber) < confirmations) return false;
+  ): Promise<{ ok: boolean; reason: string }> {
+    // Not caught here — an RPC/network failure must propagate to the caller.
+    const receipt = await client.getTransactionReceipt({ hash: d.txHash as Hex });
 
-      const safeAddress = d.campaign.safeAddress.toLowerCase();
-
-      if (d.tokenAddress) {
-        const log = receipt.logs.find((l) => l.logIndex === d.logIndex);
-        if (!log || log.address.toLowerCase() !== d.tokenAddress.toLowerCase()) return false;
-        try {
-          const decoded = decodeEventLog({ abi: [TRANSFER_EVENT], data: log.data, topics: log.topics });
-          return (
-            decoded.args.to.toLowerCase() === safeAddress &&
-            decoded.args.value === BigInt(d.amountRaw)
-          );
-        } catch {
-          return false;
-        }
-      }
-
-      const tx = await client.getTransaction({ hash: d.txHash as Hex });
-      return (
-        !!tx.to &&
-        tx.to.toLowerCase() === safeAddress &&
-        tx.value === BigInt(d.amountRaw)
-      );
-    } catch {
-      return false;
+    if (receipt.status !== 'success') {
+      return { ok: false, reason: `receipt status is "${receipt.status}", not "success"` };
     }
+    const depth = latestBlock - Number(receipt.blockNumber);
+    if (depth < confirmations) {
+      return { ok: false, reason: `only ${depth} confirmations at block ${receipt.blockNumber}, need ${confirmations}` };
+    }
+
+    const safeAddress = d.campaign.safeAddress.toLowerCase();
+
+    if (d.tokenAddress) {
+      const log = receipt.logs.find((l) => l.logIndex === d.logIndex);
+      if (!log) {
+        return { ok: false, reason: `no log at logIndex ${d.logIndex} in receipt` };
+      }
+      if (log.address.toLowerCase() !== d.tokenAddress.toLowerCase()) {
+        return { ok: false, reason: `log at logIndex ${d.logIndex} is from ${log.address}, not claimed token ${d.tokenAddress}` };
+      }
+      let decoded: { args: { to: string; value: bigint } };
+      try {
+        decoded = decodeEventLog({ abi: [TRANSFER_EVENT], data: log.data, topics: log.topics }) as {
+          args: { to: string; value: bigint };
+        };
+      } catch (err) {
+        // Data-only decode failure — no network call involved, so this is a
+        // genuine mismatch (the log isn't actually a Transfer event), not an
+        // RPC issue.
+        return { ok: false, reason: `log at logIndex ${d.logIndex} did not decode as an ERC-20 Transfer event: ${errorMessage(err)}` };
+      }
+      if (decoded.args.to.toLowerCase() !== safeAddress) {
+        return { ok: false, reason: `transfer recipient ${decoded.args.to} does not match campaign safe ${safeAddress}` };
+      }
+      if (decoded.args.value !== BigInt(d.amountRaw)) {
+        return { ok: false, reason: `transfer value ${decoded.args.value} does not match claimed amountRaw ${d.amountRaw}` };
+      }
+      return { ok: true, reason: 'ok' };
+    }
+
+    // Not caught here — same reasoning as getTransactionReceipt above.
+    const tx = await client.getTransaction({ hash: d.txHash as Hex });
+    if (!tx.to || tx.to.toLowerCase() !== safeAddress) {
+      return { ok: false, reason: `native tx recipient ${tx.to ?? 'null'} does not match campaign safe ${safeAddress}` };
+    }
+    if (tx.value !== BigInt(d.amountRaw)) {
+      return { ok: false, reason: `native tx value ${tx.value} does not match claimed amountRaw ${d.amountRaw}` };
+    }
+    return { ok: true, reason: 'ok' };
   }
 
   // ─── Public reads ─────────────────────────────────────────────
