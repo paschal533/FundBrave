@@ -14,11 +14,12 @@ const TRANSFER_EVENT = parseAbiItem(
 const MAX_BLOCK_RANGE = 2_000n;
 
 /**
- * Fallback / reconciliation indexer. Every 2 minutes it scans ERC-20
- * Transfer logs to campaign Safe addresses via plain RPC and promotes
- * DETECTED donations to CONFIRMED. Native-coin transfers are detected by
- * Moralis Streams (webhook); this poller guarantees ERC-20 completeness
- * even if Moralis is down or unconfigured.
+ * Primary donation indexer. Every 2 minutes it scans, via plain RPC, both
+ * ERC-20 Transfer logs (single getLogs call per chain) and native-coin
+ * transfers (block-by-block scan of the same delta range) to campaign Safe
+ * addresses, then promotes DETECTED donations to CONFIRMED. Fully
+ * self-sufficient — Moralis Streams (webhook) is optional low-latency
+ * redundancy, not a requirement.
  */
 @Injectable()
 export class IndexingService {
@@ -126,10 +127,64 @@ export class IndexingService {
       }
     }
 
+    await this.pollNativeTransfers(client, chain, safeAddresses, fromBlock, toBlock);
+
     await this.prisma.chainSyncState.upsert({
       where: { chainId: chain.chainId },
       create: { chainId: chain.chainId, lastBlock: Number(toBlock) },
       update: { lastBlock: Number(toBlock) },
     });
+  }
+
+  /**
+   * Native-coin transfers emit no logs, so they can't be picked up by
+   * getLogs — each new block's transaction list has to be fetched and
+   * filtered directly. This costs one RPC call per block (vs. one getLogs
+   * call for the whole ERC-20 range), but fromBlock/toBlock is normally
+   * just the handful of blocks since the last 2-minute poll, so the extra
+   * calls are cheap; MAX_BLOCK_RANGE still caps the worst case (a long
+   * outage) at 2,000 sequential calls.
+   *
+   * Only transactions addressed to a tracked Safe get a receipt lookup
+   * (cheap spam elsewhere in the block costs nothing extra), and reverted
+   * ones are never recorded at all — a reverted send moved no value, and
+   * recording it anyway would create a DETECTED row that can never
+   * legitimately confirm, wasting confirmation-check cycles forever.
+   */
+  private async pollNativeTransfers(
+    client: PublicClient,
+    chain: ChainConfig,
+    safeAddresses: Address[],
+    fromBlock: bigint,
+    toBlock: bigint,
+  ): Promise<void> {
+    const safeSet = new Set(safeAddresses.map((a) => a.toLowerCase()));
+    let found = 0;
+    for (let blockNumber = fromBlock; blockNumber <= toBlock; blockNumber++) {
+      const block = await client.getBlock({ blockNumber, includeTransactions: true });
+      for (const tx of block.transactions) {
+        if (typeof tx === 'string') continue;
+        if (!tx.to || tx.value === 0n) continue;
+        if (!safeSet.has(tx.to.toLowerCase())) continue;
+
+        const receipt = await client.getTransactionReceipt({ hash: tx.hash });
+        if (receipt.status !== 'success') continue;
+
+        await this.donations.recordTransfer({
+          chainId: chain.chainId,
+          txHash: tx.hash,
+          logIndex: -1,
+          tokenAddress: null,
+          amountRaw: tx.value.toString(),
+          fromAddress: tx.from,
+          toAddress: tx.to,
+          blockNumber: Number(blockNumber),
+        });
+        found++;
+      }
+    }
+    if (found > 0) {
+      this.logger.log(`${chain.name}: found ${found} native transfers in [${fromBlock}, ${toBlock}]`);
+    }
   }
 }
