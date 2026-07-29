@@ -10,7 +10,7 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\"",
     "type-check": "tsc --noEmit",
-    "test": "jest --passWithNoTests",
+    "test": "jest",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",

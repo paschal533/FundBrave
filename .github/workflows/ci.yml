@@ -138,6 +138,42 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fundbrave_test
           REDIS_URL: redis://localhost:6379
 
+  # MVP API Tests (packages/api — NestJS + Prisma, distinct from packages/backend)
+  api-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Not env.NODE_VERSION (18): packages/api is on NestJS 11, which
+          # requires Node 20+. The other packages stay on 18.
+          node-version: '20'
+
+      # packages/api is an npm workspace of the repo root, so its dependencies
+      # are hoisted and must be installed from the root, not per-package.
+      # `npm install` rather than `npm ci`: the committed root package-lock.json
+      # predates packages/api's jest devDependencies, so `npm ci` hard-fails on
+      # the mismatch. Switch to `npm ci` once a refreshed lockfile is committed.
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma client
+        working-directory: packages/api
+        run: npx prisma generate
+
+      # No lint step yet, unlike the other jobs: `npm run lint` currently fails on
+      # three pre-existing unused-variable errors in safe.service.spec.ts. Add the
+      # step once those are cleared, rather than merging a permanently red job.
+      - name: Run type check
+        working-directory: packages/api
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        working-directory: packages/api
+        run: npm test
+
   # AI Service Tests (skipped until service is implemented)
   ai-service-test:
     if: false  # Skip until AI service is implemented
@@ -192,7 +228,7 @@ jobs:
 
   # Build and Deploy (only on main branch)
   deploy:
-    needs: [frontend-test, contracts-test, backend-test, security-scan]
+    needs: [frontend-test, contracts-test, backend-test, api-test, security-scan]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
