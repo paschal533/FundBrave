@@ -16,6 +16,7 @@ import { DonationsModule } from './modules/donations/donations.module';
 import { EmailModule } from './modules/email/email.module';
 import { WithdrawalsModule } from './modules/withdrawals/withdrawals.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { AdminModule } from './modules/admin/admin.module';
     EmailModule,
     WithdrawalsModule,
     AdminModule,
+    WalletModule,
   ],
   providers: [
     {
