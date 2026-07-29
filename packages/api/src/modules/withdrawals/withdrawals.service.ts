@@ -14,6 +14,8 @@ import { EmailService } from '../email/email.service';
 import { findToken, tokensForChain } from '../donations/tokens.config';
 import { TtlCache } from '../../common/ttl-cache';
 
+const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
 export interface CampaignBalancesResult {
   safeAddress: Address;
   chains: {
@@ -151,6 +153,20 @@ export class WithdrawalsService {
     amountRaw: string,
   ): Promise<{ withdrawal: WithdrawalView; typedData: SafeTypedData }> {
     const campaign = await this.ownedActiveCampaign(user, campaignId);
+
+    // creatorWallet defaults to '' for campaigns that predate the migration and
+    // were never backfilled. Such a campaign can never be withdrawn from: the
+    // Safe owner is unknown, so the signature the creator is about to be asked
+    // for could not be verified against anything and execute() would ultimately
+    // die inside viem with a raw InvalidAddressError in rejectionReason. Fail
+    // here, before a single signature is collected, with a message an operator
+    // can actually act on.
+    if (!EVM_ADDRESS_RE.test(campaign.creatorWallet)) {
+      throw new BadRequestException(
+        'This campaign has no recorded Safe owner and cannot be withdrawn from — contact support',
+      );
+    }
+
     const chain = this.safe.chainConfig(chainId); // throws if not enabled
     const token = findToken(chainId, tokenAddress);
     if (!token) throw new BadRequestException('Token is not on the allowlist for this chain');

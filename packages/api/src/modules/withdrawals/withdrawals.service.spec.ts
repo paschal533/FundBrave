@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CampaignStatus, WithdrawalStatus } from '@prisma/client';
 import { WithdrawalsService } from './withdrawals.service';
@@ -102,5 +103,106 @@ describe('WithdrawalsService (execute path)', () => {
         data: expect.objectContaining({ status: WithdrawalStatus.FAILED }),
       }),
     );
+  });
+});
+
+describe('WithdrawalsService.create — creatorWallet guard', () => {
+  const creatorWallet = '0x00000000000000000000000000000000000000C1';
+  const safeAddress = '0x0000000000000000000000000000000000005AFE';
+  const user: any = { id: 'user-1', walletAddress: creatorWallet };
+
+  let prisma: any;
+  let safe: any;
+  let service: WithdrawalsService;
+
+  function campaign(overrides: Record<string, unknown>) {
+    return {
+      id: 'campaign-1',
+      creatorId: 'user-1',
+      status: CampaignStatus.ACTIVE,
+      safeAddress,
+      creatorWallet,
+      ...overrides,
+    };
+  }
+
+  beforeEach(async () => {
+    prisma = {
+      campaign: { findUnique: jest.fn() },
+      withdrawalRequest: {
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockImplementation(({ data }: any) => ({
+          ...data,
+          id: 'wd-new',
+          creatorSignature: null,
+          adminSignature: null,
+          execTxHash: null,
+          deployTxHash: null,
+          rejectionReason: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          campaign: { title: 'Test', slug: 'test', safeAddress },
+        })),
+      },
+    };
+    safe = {
+      chainConfig: jest.fn().mockReturnValue({ chainId: 11155111, name: 'Sepolia' }),
+      publicClient: jest.fn().mockReturnValue({ getBalance: jest.fn().mockResolvedValue(10n ** 18n) }),
+      getSafeNonce: jest.fn().mockResolvedValue(0n),
+      predictSafeAddress: jest.fn().mockResolvedValue({ safeAddress, saltNonce: '1' }),
+      buildWithdrawalTx: jest.fn().mockReturnValue({}),
+      hashSafeTx: jest.fn().mockReturnValue('0xhash'),
+      toTypedData: jest.fn().mockReturnValue({ domain: {}, types: {}, primaryType: 'SafeTx', message: {} }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        WithdrawalsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: SafeService, useValue: safe },
+        { provide: EmailService, useValue: { send: jest.fn() } },
+        { provide: ConfigService, useValue: { get: () => undefined } },
+      ],
+    }).compile();
+
+    service = moduleRef.get(WithdrawalsService);
+  });
+
+  it('rejects a withdrawal against a campaign with an unrecorded (empty) creatorWallet', async () => {
+    prisma.campaign.findUnique.mockResolvedValue(campaign({ creatorWallet: '' }));
+
+    await expect(service.create(user, 'campaign-1', 11155111, null, '1000')).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(service.create(user, 'campaign-1', 11155111, null, '1000')).rejects.toThrow(
+      /no recorded Safe owner/i,
+    );
+
+    // Must fail before any signing material exists: no SafeTx built, no hash to
+    // sign, no address predicted — otherwise the creator signs a doomed request
+    // that only dies deep inside execute() as a raw viem InvalidAddressError.
+    expect(safe.buildWithdrawalTx).not.toHaveBeenCalled();
+    expect(safe.hashSafeTx).not.toHaveBeenCalled();
+    expect(safe.predictSafeAddress).not.toHaveBeenCalled();
+    expect(prisma.withdrawalRequest.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed creatorWallet that is not a 20-byte hex address', async () => {
+    prisma.campaign.findUnique.mockResolvedValue(campaign({ creatorWallet: '0xnotanaddress' }));
+
+    await expect(service.create(user, 'campaign-1', 11155111, null, '1000')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(safe.buildWithdrawalTx).not.toHaveBeenCalled();
+  });
+
+  it('allows a withdrawal when creatorWallet is a well-formed address', async () => {
+    prisma.campaign.findUnique.mockResolvedValue(campaign({}));
+
+    const { withdrawal, typedData } = await service.create(user, 'campaign-1', 11155111, null, '1000');
+
+    expect(withdrawal.safeTxHash).toBe('0xhash');
+    expect(typedData).toBeDefined();
+    expect(safe.buildWithdrawalTx).toHaveBeenCalled();
   });
 });
