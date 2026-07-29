@@ -31,6 +31,17 @@ export const SAFE_FALLBACK_HANDLER: Address = '0xfd0732Dc9E303f09fCEf3a7388Ad10A
 
 const ZERO: Address = '0x0000000000000000000000000000000000000000';
 
+/**
+ * keccak256 of Safe v1.4.1's proxyCreationCode() return value — verified
+ * live against both Base mainnet and Ethereum Sepolia (identical bytecode,
+ * 974 hex chars, confirming this is genuinely canonical across chains).
+ * getProxyCreationCode() refuses to cache/use any bytecode that doesn't
+ * hash to this — a wrong or tampered RPC response would otherwise silently
+ * become the CREATE2 derivation input for every campaign's donation address.
+ */
+const EXPECTED_PROXY_CREATION_CODE_HASH =
+  '0x1856e0ee08399d74e0ea0b03adca210aeade6f748969ac023cdcb4dd62dcaf5f';
+
 const SETUP_ABI = [
   {
     type: 'function',
@@ -153,6 +164,10 @@ export class SafeService {
   private readonly chains: ChainConfig[];
   private readonly rootAdminAddress: string;
   private creationCodeCache: Hex | null = null;
+  // Instance copy of the module-level constant (rather than a bare reference
+  // to it) so tests can override the expected hash per-instance without
+  // mutating shared module state.
+  private readonly EXPECTED_PROXY_CREATION_CODE_HASH: Hex = EXPECTED_PROXY_CREATION_CODE_HASH;
 
   constructor(config: ConfigService) {
     this.chains = config.get<ChainConfig[]>('chains.enabled') ?? [];
@@ -184,6 +199,14 @@ export class SafeService {
           abi: PROXY_CREATION_CODE_ABI,
           functionName: 'proxyCreationCode',
         })) as Hex;
+        const hash = keccak256(code);
+        if (hash !== this.EXPECTED_PROXY_CREATION_CODE_HASH) {
+          this.logger.error(
+            `proxyCreationCode from ${chain.name} hashed to ${hash}, expected ${this.EXPECTED_PROXY_CREATION_CODE_HASH} — refusing to use it`,
+          );
+          lastError = new Error(`Unexpected proxy creation code hash from ${chain.name}`);
+          continue;
+        }
         this.creationCodeCache = code;
         return code;
       } catch (err) {
@@ -191,7 +214,7 @@ export class SafeService {
         this.logger.warn(`proxyCreationCode fetch failed on ${chain.name}: ${(err as Error).message}`);
       }
     }
-    this.logger.error(`All RPCs failed fetching proxy creation code: ${String(lastError)}`);
+    this.logger.error(`All RPCs failed fetching valid proxy creation code: ${String(lastError)}`);
     throw new ServiceUnavailableException('Could not reach any RPC to prepare the campaign wallet');
   }
 
@@ -255,6 +278,26 @@ export class SafeService {
 
   publicClient(chainId: number): PublicClient {
     return createPublicClient({ transport: http(this.chainConfig(chainId).rpcUrl) });
+  }
+
+  /**
+   * Assert every enabled chain's RPC actually reports the chain ID we
+   * configured it for. deploySafe/execTransaction call writeContract with
+   * `chain: null`, so viem trusts whatever the RPC reports with no
+   * cross-check — a misconfigured or swapped RPC URL would otherwise send
+   * a real transaction to the wrong chain silently. Call this once at
+   * application boot (see main.ts).
+   */
+  async assertChainIdsMatch(): Promise<void> {
+    for (const chain of this.chains) {
+      const client = this.publicClient(chain.chainId);
+      const actual = await client.getChainId();
+      if (actual !== chain.chainId) {
+        throw new Error(
+          `RPC configured for chain ${chain.chainId} (${chain.name}) actually reports chain ID ${actual} — refusing to start`,
+        );
+      }
+    }
   }
 
   private relayerAccount() {
