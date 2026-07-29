@@ -58,3 +58,75 @@ describe('SafeService.getProxyCreationCode', () => {
     await expect((service as any).getProxyCreationCode()).rejects.toThrow(ServiceUnavailableException);
   });
 });
+
+describe('SafeService.assertChainIdsMatch', () => {
+  const chainA = {
+    chainId: 11155111,
+    name: 'Sepolia',
+    rpcUrl: 'https://sepolia.example',
+    explorerUrl: '',
+    nativeSymbol: 'ETH',
+    isTestnet: true,
+  };
+  const chainB = {
+    chainId: 84532,
+    name: 'Base Sepolia',
+    rpcUrl: 'https://base-sepolia.example',
+    explorerUrl: '',
+    nativeSymbol: 'ETH',
+    isTestnet: true,
+  };
+
+  // publicClient() is called once per chain, in the order assertChainIdsMatch
+  // iterates this.chains, so queuing one createPublicClient implementation
+  // per chain (in the same order) lets each chain's client behave differently.
+  function buildService(chains: typeof chainA[], getChainIdImpls: Array<() => Promise<number>>) {
+    const mock = createPublicClient as jest.Mock;
+    mock.mockReset();
+    for (const impl of getChainIdImpls) {
+      mock.mockImplementationOnce(() => ({
+        readContract: jest.fn(),
+        getChainId: jest.fn().mockImplementation(impl),
+      }));
+    }
+    const config = {
+      get: (key: string) => (key === 'chains.enabled' ? chains : ''),
+    } as unknown as ConfigService;
+    return new SafeService(config);
+  }
+
+  it('resolves without throwing when every enabled chain reports its own chain ID', async () => {
+    const service = buildService(
+      [chainA, chainB],
+      [async () => chainA.chainId, async () => chainB.chainId],
+    );
+
+    await expect(service.assertChainIdsMatch()).resolves.toBeUndefined();
+  });
+
+  it('throws naming the chain when the RPC reports a mismatched chain ID', async () => {
+    const service = buildService([chainA], [async () => 999999]);
+
+    await expect(service.assertChainIdsMatch()).rejects.toThrow(/Sepolia/);
+    await expect(
+      buildService([chainA], [async () => 999999]).assertChainIdsMatch(),
+    ).rejects.toThrow(/actually reports chain ID 999999/);
+  });
+
+  it('throws a clear, actionable message (not an unhandled rejection) when the RPC is unreachable', async () => {
+    const service = buildService([chainA], [
+      async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    ]);
+
+    await expect(service.assertChainIdsMatch()).rejects.toThrow(/Sepolia/);
+    await expect(
+      buildService([chainA], [
+        async () => {
+          throw new Error('ECONNREFUSED');
+        },
+      ]).assertChainIdsMatch(),
+    ).rejects.toThrow(/Could not reach RPC/);
+  });
+});

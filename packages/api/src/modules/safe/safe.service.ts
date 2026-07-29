@@ -291,7 +291,14 @@ export class SafeService {
   async assertChainIdsMatch(): Promise<void> {
     for (const chain of this.chains) {
       const client = this.publicClient(chain.chainId);
-      const actual = await client.getChainId();
+      let actual: number;
+      try {
+        actual = await client.getChainId();
+      } catch (err) {
+        throw new Error(
+          `Could not reach RPC for chain ${chain.chainId} (${chain.name}) to verify its chain ID: ${(err as Error).message} — refusing to start`,
+        );
+      }
       if (actual !== chain.chainId) {
         throw new Error(
           `RPC configured for chain ${chain.chainId} (${chain.name}) actually reports chain ID ${actual} — refusing to start`,
