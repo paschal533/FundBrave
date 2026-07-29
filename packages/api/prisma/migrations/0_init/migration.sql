@@ -1,23 +1,46 @@
+-- Baseline migration.
+--
+-- This schema was originally provisioned with `prisma db push`, which creates
+-- no migration history, so this file was generated after the fact to give the
+-- database a starting point. Every statement is therefore written to be safe to
+-- replay against a database that ALREADY has these objects (any environment
+-- that was also provisioned via `db push`) — otherwise `prisma migrate deploy`
+-- would fail on the very first statement there, and the only way through would
+-- be an undocumented manual `prisma migrate resolve --applied 0_init`.
+--
+-- Postgres has no `IF NOT EXISTS` for `CREATE TYPE` or `ALTER TABLE ... ADD
+-- CONSTRAINT`, so those are wrapped in DO blocks that swallow duplicate_object.
+
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN');
+DO $$ BEGIN
+    CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateEnum
-CREATE TYPE "CampaignStatus" AS ENUM ('DRAFT', 'ACTIVE', 'COMPLETED', 'SUSPENDED');
+DO $$ BEGIN
+    CREATE TYPE "CampaignStatus" AS ENUM ('DRAFT', 'ACTIVE', 'COMPLETED', 'SUSPENDED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateEnum
-CREATE TYPE "MediaType" AS ENUM ('IMAGE', 'VIDEO');
+DO $$ BEGIN
+    CREATE TYPE "MediaType" AS ENUM ('IMAGE', 'VIDEO');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateEnum
-CREATE TYPE "DonationStatus" AS ENUM ('DETECTED', 'CONFIRMED', 'EXCLUDED');
+DO $$ BEGIN
+    CREATE TYPE "DonationStatus" AS ENUM ('DETECTED', 'CONFIRMED', 'EXCLUDED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateEnum
-CREATE TYPE "WithdrawalStatus" AS ENUM ('PENDING', 'APPROVED', 'EXECUTED', 'REJECTED', 'FAILED');
+DO $$ BEGIN
+    CREATE TYPE "WithdrawalStatus" AS ENUM ('PENDING', 'APPROVED', 'EXECUTED', 'REJECTED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateTable
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
     "id" TEXT NOT NULL,
     "privyDid" TEXT NOT NULL,
     "email" TEXT NOT NULL,
@@ -35,7 +58,7 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
-CREATE TABLE "whitelist_entries" (
+CREATE TABLE IF NOT EXISTS "whitelist_entries" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "invitedBy" TEXT,
@@ -46,7 +69,7 @@ CREATE TABLE "whitelist_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "campaigns" (
+CREATE TABLE IF NOT EXISTS "campaigns" (
     "id" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -68,7 +91,7 @@ CREATE TABLE "campaigns" (
 );
 
 -- CreateTable
-CREATE TABLE "campaign_media" (
+CREATE TABLE IF NOT EXISTS "campaign_media" (
     "id" TEXT NOT NULL,
     "campaignId" TEXT NOT NULL,
     "type" "MediaType" NOT NULL,
@@ -80,7 +103,7 @@ CREATE TABLE "campaign_media" (
 );
 
 -- CreateTable
-CREATE TABLE "safe_deployments" (
+CREATE TABLE IF NOT EXISTS "safe_deployments" (
     "id" TEXT NOT NULL,
     "campaignId" TEXT NOT NULL,
     "chainId" INTEGER NOT NULL,
@@ -91,7 +114,7 @@ CREATE TABLE "safe_deployments" (
 );
 
 -- CreateTable
-CREATE TABLE "donations" (
+CREATE TABLE IF NOT EXISTS "donations" (
     "id" TEXT NOT NULL,
     "campaignId" TEXT NOT NULL,
     "chainId" INTEGER NOT NULL,
@@ -112,7 +135,7 @@ CREATE TABLE "donations" (
 );
 
 -- CreateTable
-CREATE TABLE "withdrawal_requests" (
+CREATE TABLE IF NOT EXISTS "withdrawal_requests" (
     "id" TEXT NOT NULL,
     "campaignId" TEXT NOT NULL,
     "chainId" INTEGER NOT NULL,
@@ -134,7 +157,7 @@ CREATE TABLE "withdrawal_requests" (
 );
 
 -- CreateTable
-CREATE TABLE "token_prices" (
+CREATE TABLE IF NOT EXISTS "token_prices" (
     "id" TEXT NOT NULL,
     "symbol" TEXT NOT NULL,
     "usd" DECIMAL(18,8) NOT NULL,
@@ -144,7 +167,7 @@ CREATE TABLE "token_prices" (
 );
 
 -- CreateTable
-CREATE TABLE "chain_sync_states" (
+CREATE TABLE IF NOT EXISTS "chain_sync_states" (
     "id" TEXT NOT NULL,
     "chainId" INTEGER NOT NULL,
     "lastBlock" INTEGER NOT NULL,
@@ -154,7 +177,7 @@ CREATE TABLE "chain_sync_states" (
 );
 
 -- CreateTable
-CREATE TABLE "admin_audit_logs" (
+CREATE TABLE IF NOT EXISTS "admin_audit_logs" (
     "id" TEXT NOT NULL,
     "adminId" TEXT NOT NULL,
     "action" TEXT NOT NULL,
@@ -166,80 +189,91 @@ CREATE TABLE "admin_audit_logs" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_privyDid_key" ON "users"("privyDid");
+CREATE UNIQUE INDEX IF NOT EXISTS "users_privyDid_key" ON "users"("privyDid");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_walletAddress_key" ON "users"("walletAddress");
+CREATE UNIQUE INDEX IF NOT EXISTS "users_walletAddress_key" ON "users"("walletAddress");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
+CREATE UNIQUE INDEX IF NOT EXISTS "users_username_key" ON "users"("username");
 
 -- CreateIndex
-CREATE INDEX "users_email_idx" ON "users"("email");
+CREATE INDEX IF NOT EXISTS "users_email_idx" ON "users"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "whitelist_entries_email_key" ON "whitelist_entries"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "whitelist_entries_email_key" ON "whitelist_entries"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "campaigns_slug_key" ON "campaigns"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "campaigns_slug_key" ON "campaigns"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "campaigns_safeAddress_key" ON "campaigns"("safeAddress");
+CREATE UNIQUE INDEX IF NOT EXISTS "campaigns_safeAddress_key" ON "campaigns"("safeAddress");
 
 -- CreateIndex
-CREATE INDEX "campaigns_status_category_idx" ON "campaigns"("status", "category");
+CREATE INDEX IF NOT EXISTS "campaigns_status_category_idx" ON "campaigns"("status", "category");
 
 -- CreateIndex
-CREATE INDEX "campaigns_creatorId_idx" ON "campaigns"("creatorId");
+CREATE INDEX IF NOT EXISTS "campaigns_creatorId_idx" ON "campaigns"("creatorId");
 
 -- CreateIndex
-CREATE INDEX "campaign_media_campaignId_idx" ON "campaign_media"("campaignId");
+CREATE INDEX IF NOT EXISTS "campaign_media_campaignId_idx" ON "campaign_media"("campaignId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "safe_deployments_campaignId_chainId_key" ON "safe_deployments"("campaignId", "chainId");
+CREATE UNIQUE INDEX IF NOT EXISTS "safe_deployments_campaignId_chainId_key" ON "safe_deployments"("campaignId", "chainId");
 
 -- CreateIndex
-CREATE INDEX "donations_campaignId_status_idx" ON "donations"("campaignId", "status");
+CREATE INDEX IF NOT EXISTS "donations_campaignId_status_idx" ON "donations"("campaignId", "status");
 
 -- CreateIndex
-CREATE INDEX "donations_donorAddress_idx" ON "donations"("donorAddress");
+CREATE INDEX IF NOT EXISTS "donations_donorAddress_idx" ON "donations"("donorAddress");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "donations_chainId_txHash_logIndex_key" ON "donations"("chainId", "txHash", "logIndex");
+CREATE UNIQUE INDEX IF NOT EXISTS "donations_chainId_txHash_logIndex_key" ON "donations"("chainId", "txHash", "logIndex");
 
 -- CreateIndex
-CREATE INDEX "withdrawal_requests_campaignId_idx" ON "withdrawal_requests"("campaignId");
+CREATE INDEX IF NOT EXISTS "withdrawal_requests_campaignId_idx" ON "withdrawal_requests"("campaignId");
 
 -- CreateIndex
-CREATE INDEX "withdrawal_requests_status_idx" ON "withdrawal_requests"("status");
+CREATE INDEX IF NOT EXISTS "withdrawal_requests_status_idx" ON "withdrawal_requests"("status");
 
 -- CreateIndex
-CREATE INDEX "token_prices_symbol_fetchedAt_idx" ON "token_prices"("symbol", "fetchedAt");
+CREATE INDEX IF NOT EXISTS "token_prices_symbol_fetchedAt_idx" ON "token_prices"("symbol", "fetchedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "chain_sync_states_chainId_key" ON "chain_sync_states"("chainId");
+CREATE UNIQUE INDEX IF NOT EXISTS "chain_sync_states_chainId_key" ON "chain_sync_states"("chainId");
 
 -- CreateIndex
-CREATE INDEX "admin_audit_logs_adminId_idx" ON "admin_audit_logs"("adminId");
+CREATE INDEX IF NOT EXISTS "admin_audit_logs_adminId_idx" ON "admin_audit_logs"("adminId");
 
 -- AddForeignKey
-ALTER TABLE "campaigns" ADD CONSTRAINT "campaigns_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "campaigns" ADD CONSTRAINT "campaigns_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AddForeignKey
-ALTER TABLE "campaign_media" ADD CONSTRAINT "campaign_media_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "campaign_media" ADD CONSTRAINT "campaign_media_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AddForeignKey
-ALTER TABLE "safe_deployments" ADD CONSTRAINT "safe_deployments_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "safe_deployments" ADD CONSTRAINT "safe_deployments_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AddForeignKey
-ALTER TABLE "donations" ADD CONSTRAINT "donations_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "donations" ADD CONSTRAINT "donations_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AddForeignKey
-ALTER TABLE "donations" ADD CONSTRAINT "donations_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "donations" ADD CONSTRAINT "donations_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AddForeignKey
-ALTER TABLE "withdrawal_requests" ADD CONSTRAINT "withdrawal_requests_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
+DO $$ BEGIN
+    ALTER TABLE "withdrawal_requests" ADD CONSTRAINT "withdrawal_requests_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

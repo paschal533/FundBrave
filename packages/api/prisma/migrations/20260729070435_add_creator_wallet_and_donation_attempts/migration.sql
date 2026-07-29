@@ -1,11 +1,15 @@
+-- Written to be replay-safe for the same reason as 0_init: an environment
+-- provisioned with `prisma db push` from the current schema already has these
+-- objects, and `prisma migrate deploy` would otherwise fail on them.
+
 -- AlterEnum
-ALTER TYPE "DonationStatus" ADD VALUE 'ORPHANED';
+ALTER TYPE "DonationStatus" ADD VALUE IF NOT EXISTS 'ORPHANED';
 
 -- AlterTable
-ALTER TABLE "campaigns" ADD COLUMN     "creatorWallet" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "campaigns" ADD COLUMN IF NOT EXISTS "creatorWallet" TEXT NOT NULL DEFAULT '';
 
 -- AlterTable
-ALTER TABLE "donations" ADD COLUMN     "attempts" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "donations" ADD COLUMN IF NOT EXISTS "attempts" INTEGER NOT NULL DEFAULT 0;
 
 -- Backfill creatorWallet for campaigns published before this column existed.
 -- Best-effort: uses the creator's current walletAddress, which is exactly
