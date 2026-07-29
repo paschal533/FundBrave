@@ -91,12 +91,28 @@ export class IndexingService {
 
     // Confirmation pass runs even with no addresses (clears backlog).
     // Passing the client makes confirmation re-verify each tx receipt on-chain.
-    await this.donations.confirmDonations(
-      chain.chainId,
-      Number(latest),
-      this.confirmations,
-      client,
-    );
+    //
+    // Deliberately isolated from the block-range scan below: confirmation
+    // promotes already-DETECTED rows and takes no fromBlock/toBlock, so its
+    // failure says nothing about whether this cycle's range was scanned. Its
+    // own errors must therefore neither anchor chainSyncState (which would
+    // needlessly re-scan a range that succeeded) nor abort the scan (which,
+    // on a cold start, would leave no chainSyncState row at all and silently
+    // skip the intervening blocks next cycle). It is retried every cycle
+    // regardless, since it is driven purely by DB state.
+    try {
+      await this.donations.confirmDonations(
+        chain.chainId,
+        Number(latest),
+        this.confirmations,
+        client,
+      );
+    } catch (err) {
+      this.logger.error(
+        `${chain.name}: confirmation pass failed: ${(err as Error).message}. ` +
+          `Donations stay DETECTED and will be retried next cycle.`,
+      );
+    }
 
     if (safeAddresses.length === 0) return;
 
@@ -107,53 +123,35 @@ export class IndexingService {
     if (fromBlock > latest) return;
     const toBlock = fromBlock + MAX_BLOCK_RANGE > latest ? latest : fromBlock + MAX_BLOCK_RANGE;
 
-    // Surface how far this poll's sync target trails the current chain head.
-    // A poller that silently falls behind (H-5) is only detectable via this
-    // log line — a healthy poller should show lag close to 0 every cycle.
-    this.logger.log(
-      `${chain.name}: syncing [${fromBlock}, ${toBlock}] (head ${latest}, lag ${latest - toBlock} blocks)`,
-    );
-
-    const tokenAddresses = tokensForChain(chain.chainId)
-      .map((t) => t.address)
-      .filter((a): a is string => a !== null) as Address[];
-
-    if (tokenAddresses.length > 0) {
-      const logs = await client.getLogs({
-        address: tokenAddresses,
-        event: TRANSFER_EVENT,
-        args: { to: safeAddresses },
-        fromBlock,
-        toBlock,
-      });
-      for (const log of logs) {
-        if (log.args.value === undefined || !log.args.from || !log.args.to) continue;
-        await this.donations.recordTransfer({
-          chainId: chain.chainId,
-          txHash: log.transactionHash,
-          logIndex: log.logIndex,
-          tokenAddress: log.address,
-          amountRaw: log.args.value.toString(),
-          fromAddress: log.args.from,
-          toAddress: log.args.to,
-          blockNumber: Number(log.blockNumber),
-        });
-      }
-      if (logs.length > 0) {
-        this.logger.log(`${chain.name}: found ${logs.length} ERC-20 transfers in [${fromBlock}, ${toBlock}]`);
-      }
+    // Everything that scans [fromBlock, toBlock] is wrapped in one try/catch so
+    // that ANY failure — an ERC-20 getLogs rejection, a recordTransfer write
+    // error, or an unexpected throw out of pollNativeTransfers — lands on the
+    // same anchoring path as a native-transfer failure, instead of propagating
+    // out of pollChain and skipping the upsert entirely. Skipping the upsert is
+    // harmless in steady state (the old row persists, so the range is re-scanned)
+    // but on a cold start (no row yet) the next cycle recomputes fromBlock from a
+    // fresh `latest` and silently loses the failed range — which is exactly the
+    // situation each of the 4 mainnet chains starts in.
+    let hadFailures = false;
+    try {
+      await this.scanErc20Transfers(client, chain, safeAddresses, fromBlock, toBlock);
+      hadFailures = await this.pollNativeTransfers(client, chain, safeAddresses, fromBlock, toBlock);
+    } catch (err) {
+      this.logger.error(
+        `${chain.name}: scan of [${fromBlock}, ${toBlock}] failed: ${(err as Error).message}. ` +
+          `Range will be re-scanned next poll cycle.`,
+      );
+      hadFailures = true;
     }
 
-    const nativeTransfersHadFailures = await this.pollNativeTransfers(client, chain, safeAddresses, fromBlock, toBlock);
+    this.logSyncProgress(chain, fromBlock, toBlock, latest, hadFailures);
 
     // Always upsert chainSyncState to ensure a persisted row exists after the first poll.
     // On success: advance normally to toBlock.
     // On failure: anchor to fromBlock - 1, ensuring the failed range is re-scanned next cycle.
-    // This prevents the cold-start gap (when chainSyncState doesn't exist yet, the next poll
-    // after a failure would recompute fromBlock from the current latest, silently skipping
-    // the failed range). With this approach, fromBlock is always derived from a persisted
-    // lastBlock value on the 2nd+ cycle, guaranteeing retry semantics in all cases.
-    const lastBlockToStore = nativeTransfersHadFailures
+    // With this approach, fromBlock is always derived from a persisted lastBlock value on
+    // the 2nd+ cycle, guaranteeing retry semantics in all cases.
+    const lastBlockToStore = hadFailures
       ? Number(fromBlock) - 1 // Don't advance; re-scan this range next cycle
       : Number(toBlock); // Advance normally on success
 
@@ -162,6 +160,87 @@ export class IndexingService {
       create: { chainId: chain.chainId, lastBlock: lastBlockToStore },
       update: { lastBlock: lastBlockToStore },
     });
+  }
+
+  /**
+   * Surface how far this poll's sync target trails the current chain head.
+   * A poller that silently falls behind (H-5) is only detectable via this line.
+   *
+   * The level is escalated to warn when this cycle anchored on failure, or when
+   * the poller is more than one full MAX_BLOCK_RANGE behind the head. A range
+   * whose block or receipt is permanently unavailable from the configured RPC
+   * is retried forever by design (force-advancing past it would mean accepting
+   * permanent, silent donation loss for that range), so the only remaining
+   * safeguard is that the stall becomes visible to whatever watches warnings —
+   * at info level it would never escalate and nobody would ever be alerted.
+   */
+  private logSyncProgress(
+    chain: ChainConfig,
+    fromBlock: bigint,
+    toBlock: bigint,
+    latest: bigint,
+    hadFailures: boolean,
+  ): void {
+    const lag = latest - toBlock;
+    const range = `[${fromBlock}, ${toBlock}] (head ${latest}, lag ${lag} blocks)`;
+    if (hadFailures) {
+      this.logger.warn(
+        `${chain.name}: scan of ${range} did not fully succeed — not advancing sync state, ` +
+          `this range will be re-scanned next cycle. Indexing for this chain is stalled ` +
+          `until it succeeds.`,
+      );
+      return;
+    }
+    if (lag > MAX_BLOCK_RANGE) {
+      this.logger.warn(`${chain.name}: synced ${range} — poller is falling behind the chain head`);
+      return;
+    }
+    this.logger.log(`${chain.name}: synced ${range}`);
+  }
+
+  /**
+   * Single getLogs call covering every allowlisted ERC-20 on this chain for the
+   * whole [fromBlock, toBlock] range. Errors are intentionally NOT caught here —
+   * pollChain's surrounding try/catch owns them so they reach the same
+   * chainSyncState anchoring path as native-transfer failures.
+   */
+  private async scanErc20Transfers(
+    client: PublicClient,
+    chain: ChainConfig,
+    safeAddresses: Address[],
+    fromBlock: bigint,
+    toBlock: bigint,
+  ): Promise<void> {
+    const tokenAddresses = tokensForChain(chain.chainId)
+      .map((t) => t.address)
+      .filter((a): a is string => a !== null) as Address[];
+    if (tokenAddresses.length === 0) return;
+
+    const logs = await client.getLogs({
+      address: tokenAddresses,
+      event: TRANSFER_EVENT,
+      args: { to: safeAddresses },
+      fromBlock,
+      toBlock,
+    });
+    for (const log of logs) {
+      if (log.args.value === undefined || !log.args.from || !log.args.to) continue;
+      await this.donations.recordTransfer({
+        chainId: chain.chainId,
+        txHash: log.transactionHash,
+        logIndex: log.logIndex,
+        tokenAddress: log.address,
+        amountRaw: log.args.value.toString(),
+        fromAddress: log.args.from,
+        toAddress: log.args.to,
+        blockNumber: Number(log.blockNumber),
+      });
+    }
+    if (logs.length > 0) {
+      this.logger.log(
+        `${chain.name}: found ${logs.length} ERC-20 transfers in [${fromBlock}, ${toBlock}]`,
+      );
+    }
   }
 
   /**

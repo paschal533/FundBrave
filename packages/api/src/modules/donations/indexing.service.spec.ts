@@ -282,6 +282,94 @@ describe('IndexingService.pollChain - state advancement wiring', () => {
       }),
     );
   });
+
+  it('creates chainSyncState anchored to fromBlock - 1 when the ERC-20 getLogs call rejects on a cold start', async () => {
+    prisma.chainSyncState.findUnique.mockResolvedValue(null); // cold start — no row exists yet
+
+    const client = mockClient([], 'success');
+    client.getLogs = jest.fn().mockRejectedValue(new Error('getLogs: 503 Service Unavailable'));
+    (service as any).clients.set(chain.chainId, client);
+
+    await (service as any).pollChain(chain, [safe]);
+
+    // A getLogs rejection used to propagate out of pollChain, skipping the upsert
+    // entirely — leaving a cold-start chain with NO row, so the next cycle would
+    // recompute fromBlock from a fresh head and silently skip [90, 100].
+    expect(prisma.chainSyncState.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ lastBlock: 89 }),
+        update: { lastBlock: 89 },
+      }),
+    );
+  });
+
+  it('anchors chainSyncState to fromBlock - 1 when an ERC-20 recordTransfer write rejects', async () => {
+    prisma.chainSyncState.findUnique.mockResolvedValue({ chainId: 11155111, lastBlock: 50 });
+    donations.recordTransfer.mockRejectedValue(new Error('DB connection lost'));
+
+    const client = mockClient([], 'success');
+    client.getLogs = jest.fn().mockResolvedValue([
+      {
+        transactionHash: '0xerc20',
+        logIndex: 0,
+        address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+        blockNumber: 60n,
+        args: { value: 5n, from: '0xd0e', to: safe },
+      },
+    ]);
+    (service as any).clients.set(chain.chainId, client);
+
+    await (service as any).pollChain(chain, [safe]);
+
+    expect(prisma.chainSyncState.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { lastBlock: 50 } }),
+    );
+  });
+
+  it('does not anchor (or abort the scan) when only the confirmation pass fails', async () => {
+    prisma.chainSyncState.findUnique.mockResolvedValue(null); // cold start
+    donations.confirmDonations.mockRejectedValue(new Error('confirmation query timed out'));
+    const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+
+    const tx = { to: safe, from: '0xok', value: 1n, hash: '0xok' };
+    const client = mockClient([tx], 'success');
+    (service as any).clients.set(chain.chainId, client);
+
+    await (service as any).pollChain(chain, [safe]);
+
+    // confirmDonations takes no block range, so its failure says nothing about
+    // whether [90, 100] was scanned — the scan still ran and still advanced.
+    expect(donations.recordTransfer).toHaveBeenCalled();
+    expect(prisma.chainSyncState.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ lastBlock: 100 }) }),
+    );
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('confirmation pass failed'));
+  });
+
+  it('logs sync progress at warn level when the range failed, and at info level when healthy', async () => {
+    const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    const logSpy = jest.spyOn((service as any).logger, 'log').mockImplementation(() => undefined);
+    prisma.chainSyncState.findUnique.mockResolvedValue({ chainId: 11155111, lastBlock: 50 });
+
+    const failing = mockClient([{ to: safe, from: '0xfail', value: 1n, hash: '0xfail' }], null);
+    (service as any).clients.set(chain.chainId, failing);
+    await (service as any).pollChain(chain, [safe]);
+
+    // A permanently stuck range must escalate beyond info level — that is the
+    // only operator-visible signal that indexing has stopped making progress.
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('did not fully succeed'));
+    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('synced [51, 100]'));
+
+    warnSpy.mockClear();
+    logSpy.mockClear();
+
+    const healthy = mockClient([{ to: safe, from: '0xok', value: 1n, hash: '0xok' }], 'success');
+    (service as any).clients.set(chain.chainId, healthy);
+    await (service as any).pollChain(chain, [safe]);
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('synced [51, 100]'));
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('IndexingService.poll — chain concurrency', () => {
