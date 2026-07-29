@@ -205,7 +205,7 @@ export class WithdrawalsService {
       throw new BadRequestException('Withdrawal is not awaiting signatures');
     }
 
-    await this.verifySignature(w.safeTxHash as Hex, signature as Hex, user.walletAddress as Address);
+    await this.verifySignature(w.safeTxHash as Hex, signature as Hex, w.campaign.creatorWallet as Address);
 
     const updated = await this.prisma.withdrawalRequest.update({
       where: { id },
@@ -306,8 +306,21 @@ export class WithdrawalsService {
     const w = await this.getWithCampaign(id);
     if (w.status !== WithdrawalStatus.APPROVED) return;
     const safeAddress = w.campaign.safeAddress as Address;
+    const creatorWallet = w.campaign.creatorWallet as Address;
 
     try {
+      // Defense in depth: the stored safeAddress must still be exactly what
+      // creatorWallet + campaignId predicts. If this ever drifts (corrupted
+      // row, a future code path that bypasses publish()), refuse rather
+      // than deploy or execute against the wrong Safe.
+      const predicted = await this.safe.predictSafeAddress(creatorWallet, w.campaignId);
+      if (predicted.safeAddress.toLowerCase() !== safeAddress.toLowerCase()) {
+        throw new Error(
+          `Predicted Safe address (${predicted.safeAddress}) no longer matches stored safeAddress ` +
+            `(${safeAddress}) for campaign ${w.campaignId} — refusing to execute`,
+        );
+      }
+
       // Nonce must still match what was signed
       const currentNonce = await this.safe.getSafeNonce(w.chainId, safeAddress);
       if (Number(currentNonce) !== w.nonce) {
@@ -318,16 +331,7 @@ export class WithdrawalsService {
 
       let deployTxHash: Hex | undefined;
       if (!(await this.safe.isDeployed(w.chainId, safeAddress))) {
-        const creator = await this.prisma.user.findUnique({
-          where: { id: w.campaign.creatorId },
-          select: { walletAddress: true },
-        });
-        deployTxHash = await this.safe.deploySafe(
-          w.chainId,
-          creator!.walletAddress as Address,
-          w.campaignId,
-          safeAddress,
-        );
+        deployTxHash = await this.safe.deploySafe(w.chainId, creatorWallet, w.campaignId, safeAddress);
         await this.prisma.safeDeployment.upsert({
           where: { campaignId_chainId: { campaignId: w.campaignId, chainId: w.chainId } },
           create: { campaignId: w.campaignId, chainId: w.chainId, txHash: deployTxHash },
@@ -342,13 +346,9 @@ export class WithdrawalsService {
         BigInt(w.nonce),
       );
       const adminAddress = this.safe.getRootAdminAddress();
-      const creator = await this.prisma.user.findUnique({
-        where: { id: w.campaign.creatorId },
-        select: { walletAddress: true },
-      });
 
       const execTxHash = await this.safe.execTransaction(w.chainId, safeAddress, tx, [
-        { signer: creator!.walletAddress as Address, signature: w.creatorSignature as Hex },
+        { signer: creatorWallet, signature: w.creatorSignature as Hex },
         { signer: adminAddress, signature: w.adminSignature as Hex },
       ]);
 
@@ -435,7 +435,7 @@ export class WithdrawalsService {
     const w = await this.prisma.withdrawalRequest.findUnique({
       where: { id },
       include: {
-        campaign: { select: { title: true, slug: true, safeAddress: true, creatorId: true } },
+        campaign: { select: { title: true, slug: true, safeAddress: true, creatorId: true, creatorWallet: true } },
       },
     });
     if (!w) throw new NotFoundException('Withdrawal not found');

@@ -70,6 +70,12 @@ model Campaign {
   // Safe 2-of-2 (creator + root admin). Counterfactual address, identical on all supported chains.
   safeAddress String @unique
   safeSalt    String // saltNonce used for CREATE2 prediction
+  // The wallet baked into the CREATE2 initializer at publish time — the
+  // actual Safe owner. NEVER re-derive this from a live User.walletAddress
+  // lookup: Privy can legitimately return a different embedded wallet for
+  // a user later, and using the live value would rebuild a different Safe
+  // than the one holding the campaign's donations.
+  creatorWallet String @default("")
 
   creatorId String
   creator   User   @relation(fields: [creatorId], references: [id])
@@ -124,6 +130,7 @@ enum DonationStatus {
   DETECTED // seen via webhook/poll, awaiting confirmations
   CONFIRMED // counted in raisedUsd
   EXCLUDED // non-allowlisted token; stored but not counted
+  ORPHANED // failed confirmation repeatedly (reverted/reorged/never canonical) — terminal, never counted
 }
 
 model Donation {
@@ -143,6 +150,7 @@ model Donation {
   donor        User?          @relation(fields: [donorId], references: [id])
   status       DonationStatus @default(DETECTED)
   blockNumber  Int
+  attempts     Int            @default(0) // failed confirmation attempts; ORPHANED after a threshold
   createdAt    DateTime       @default(now())
 
   @@unique([chainId, txHash, logIndex])

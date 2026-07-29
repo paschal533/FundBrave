@@ -232,10 +232,15 @@ export class CampaignsService {
 
     const updated = await this.prisma.campaign.update({
       where: { id },
-      data: { status: CampaignStatus.ACTIVE, safeAddress, safeSalt: saltNonce },
+      data: {
+        status: CampaignStatus.ACTIVE,
+        safeAddress,
+        safeSalt: saltNonce,
+        creatorWallet: user.walletAddress,
+      },
       include: { media: true, creator: CREATOR_SELECT },
     });
-    this.logger.log(`Campaign ${id} published — Safe ${safeAddress}`);
+    this.logger.log(`Campaign ${id} published — Safe ${safeAddress} (owner ${user.walletAddress})`);
     // Register the address with Moralis Streams (non-blocking; poller covers failures)
     void this.streams.watchAddress(safeAddress);
     return toPublicCampaign(updated);
