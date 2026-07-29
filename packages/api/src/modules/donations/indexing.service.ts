@@ -127,13 +127,19 @@ export class IndexingService {
       }
     }
 
-    await this.pollNativeTransfers(client, chain, safeAddresses, fromBlock, toBlock);
+    const nativeTransfersHadFailures = await this.pollNativeTransfers(client, chain, safeAddresses, fromBlock, toBlock);
 
-    await this.prisma.chainSyncState.upsert({
-      where: { chainId: chain.chainId },
-      create: { chainId: chain.chainId, lastBlock: Number(toBlock) },
-      update: { lastBlock: Number(toBlock) },
-    });
+    // Only advance chainSyncState if native transfer processing succeeded.
+    // If any per-candidate error occurred, the entire block range will be
+    // re-scanned next poll cycle (retry semantics). ERC-20 log scan (above)
+    // already throws on failure, so if we reach here, it succeeded.
+    if (!nativeTransfersHadFailures) {
+      await this.prisma.chainSyncState.upsert({
+        where: { chainId: chain.chainId },
+        create: { chainId: chain.chainId, lastBlock: Number(toBlock) },
+        update: { lastBlock: Number(toBlock) },
+      });
+    }
   }
 
   /**
@@ -154,6 +160,11 @@ export class IndexingService {
    * Receipt lookups and recording are wrapped in try-catch per transaction,
    * so a flaky RPC response for one candidate doesn't abort processing of
    * remaining candidates in the block or other blocks in this poll cycle.
+   * If any per-candidate error occurs, that transaction is logged and skipped,
+   * and the method returns true. This signals the caller to skip advancing
+   * chainSyncState, ensuring the entire block range is re-scanned next cycle.
+   *
+   * @returns true if any per-candidate error occurred; false if all completed successfully
    */
   private async pollNativeTransfers(
     client: PublicClient,
@@ -161,9 +172,10 @@ export class IndexingService {
     safeAddresses: Address[],
     fromBlock: bigint,
     toBlock: bigint,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const safeSet = new Set(safeAddresses.map((a) => a.toLowerCase()));
     let found = 0;
+    let hadFailures = false;
     for (let blockNumber = fromBlock; blockNumber <= toBlock; blockNumber++) {
       const block = await client.getBlock({ blockNumber, includeTransactions: true });
       for (const tx of block.transactions) {
@@ -189,13 +201,15 @@ export class IndexingService {
         } catch (err) {
           this.logger.warn(
             `${chain.name}: failed to process native transfer ${tx.hash}: ${(err as Error).message}. ` +
-              `Will retry next poll cycle since the block range will be re-scanned if chainSyncState doesn't advance.`,
+              `Skipping; block range will be re-scanned next poll cycle.`,
           );
+          hadFailures = true;
         }
       }
     }
     if (found > 0) {
       this.logger.log(`${chain.name}: found ${found} native transfers in [${fromBlock}, ${toBlock}]`);
     }
+    return hadFailures;
   }
 }

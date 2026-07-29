@@ -35,29 +35,32 @@ describe('IndexingService.pollNativeTransfers', () => {
     } as any;
   }
 
-  it('records a native transfer whose receipt succeeded', async () => {
+  it('records a native transfer whose receipt succeeded, returns false', async () => {
     const tx = { to: safe, from: '0xd0e', value: 1_000_000_000_000_000n, hash: '0xok' };
-    await (service as any).pollNativeTransfers(client([tx], 'success'), chain, [safe], 10n, 10n);
+    const hadFailures = await (service as any).pollNativeTransfers(client([tx], 'success'), chain, [safe], 10n, 10n);
+    expect(hadFailures).toBe(false);
     expect(donations.recordTransfer).toHaveBeenCalledTimes(1);
     expect(donations.recordTransfer).toHaveBeenCalledWith(
       expect.objectContaining({ txHash: '0xok', amountRaw: '1000000000000000' }),
     );
   });
 
-  it('does NOT record a native transfer whose receipt reverted', async () => {
+  it('does NOT record a native transfer whose receipt reverted, returns false', async () => {
     const tx = { to: safe, from: '0xd0e', value: 1n, hash: '0xreverted' };
-    await (service as any).pollNativeTransfers(client([tx], 'reverted'), chain, [safe], 10n, 10n);
+    const hadFailures = await (service as any).pollNativeTransfers(client([tx], 'reverted'), chain, [safe], 10n, 10n);
+    expect(hadFailures).toBe(false);
     expect(donations.recordTransfer).not.toHaveBeenCalled();
   });
 
   it('never fetches a receipt for transactions unrelated to any tracked Safe', async () => {
     const c = client([{ to: '0xsomeoneelse', from: '0xd0e', value: 1n, hash: '0xirrelevant' }], 'success');
-    await (service as any).pollNativeTransfers(c, chain, [safe], 10n, 10n);
+    const hadFailures = await (service as any).pollNativeTransfers(c, chain, [safe], 10n, 10n);
+    expect(hadFailures).toBe(false);
     expect(c.getTransactionReceipt).not.toHaveBeenCalled();
     expect(donations.recordTransfer).not.toHaveBeenCalled();
   });
 
-  it('logs and skips one failed receipt lookup but still records other valid Safe-addressed transfers', async () => {
+  it('logs and skips one failed receipt lookup but still records other valid Safe-addressed transfers, returns true', async () => {
     const tx1 = { to: safe, from: '0xfail', value: 111n, hash: '0xfail' };
     const tx2 = { to: safe, from: '0xok', value: 222n, hash: '0xok2' };
     const mockClient = {
@@ -67,10 +70,22 @@ describe('IndexingService.pollNativeTransfers', () => {
         .mockRejectedValueOnce(new Error('RPC timeout'))
         .mockResolvedValueOnce({ status: 'success' }),
     } as any;
-    await (service as any).pollNativeTransfers(mockClient, chain, [safe], 10n, 10n);
+    const hadFailures = await (service as any).pollNativeTransfers(mockClient, chain, [safe], 10n, 10n);
+    expect(hadFailures).toBe(true);
     expect(donations.recordTransfer).toHaveBeenCalledTimes(1);
     expect(donations.recordTransfer).toHaveBeenCalledWith(
       expect.objectContaining({ txHash: '0xok2', amountRaw: '222' }),
     );
+  });
+
+  it('returns true when a per-candidate error occurs, signaling pollChain to skip state advancement', async () => {
+    const tx = { to: safe, from: '0xfail', value: 111n, hash: '0xfail' };
+    const mockClient = {
+      getBlock: jest.fn().mockResolvedValue({ transactions: [tx] }),
+      getTransactionReceipt: jest.fn().mockRejectedValue(new Error('RPC rate limit')),
+    } as any;
+    const hadFailures = await (service as any).pollNativeTransfers(mockClient, chain, [safe], 10n, 10n);
+    expect(hadFailures).toBe(true);
+    expect(donations.recordTransfer).not.toHaveBeenCalled();
   });
 });
