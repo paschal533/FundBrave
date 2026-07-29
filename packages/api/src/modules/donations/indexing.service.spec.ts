@@ -56,4 +56,21 @@ describe('IndexingService.pollNativeTransfers', () => {
     expect(c.getTransactionReceipt).not.toHaveBeenCalled();
     expect(donations.recordTransfer).not.toHaveBeenCalled();
   });
+
+  it('logs and skips one failed receipt lookup but still records other valid Safe-addressed transfers', async () => {
+    const tx1 = { to: safe, from: '0xfail', value: 111n, hash: '0xfail' };
+    const tx2 = { to: safe, from: '0xok', value: 222n, hash: '0xok2' };
+    const mockClient = {
+      getBlock: jest.fn().mockResolvedValue({ transactions: [tx1, tx2] }),
+      getTransactionReceipt: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('RPC timeout'))
+        .mockResolvedValueOnce({ status: 'success' }),
+    } as any;
+    await (service as any).pollNativeTransfers(mockClient, chain, [safe], 10n, 10n);
+    expect(donations.recordTransfer).toHaveBeenCalledTimes(1);
+    expect(donations.recordTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ txHash: '0xok2', amountRaw: '222' }),
+    );
+  });
 });

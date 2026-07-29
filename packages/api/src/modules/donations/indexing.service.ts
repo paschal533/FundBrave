@@ -150,6 +150,10 @@ export class IndexingService {
    * ones are never recorded at all — a reverted send moved no value, and
    * recording it anyway would create a DETECTED row that can never
    * legitimately confirm, wasting confirmation-check cycles forever.
+   *
+   * Receipt lookups and recording are wrapped in try-catch per transaction,
+   * so a flaky RPC response for one candidate doesn't abort processing of
+   * remaining candidates in the block or other blocks in this poll cycle.
    */
   private async pollNativeTransfers(
     client: PublicClient,
@@ -167,20 +171,27 @@ export class IndexingService {
         if (!tx.to || tx.value === 0n) continue;
         if (!safeSet.has(tx.to.toLowerCase())) continue;
 
-        const receipt = await client.getTransactionReceipt({ hash: tx.hash });
-        if (receipt.status !== 'success') continue;
+        try {
+          const receipt = await client.getTransactionReceipt({ hash: tx.hash });
+          if (receipt.status !== 'success') continue;
 
-        await this.donations.recordTransfer({
-          chainId: chain.chainId,
-          txHash: tx.hash,
-          logIndex: -1,
-          tokenAddress: null,
-          amountRaw: tx.value.toString(),
-          fromAddress: tx.from,
-          toAddress: tx.to,
-          blockNumber: Number(blockNumber),
-        });
-        found++;
+          await this.donations.recordTransfer({
+            chainId: chain.chainId,
+            txHash: tx.hash,
+            logIndex: -1,
+            tokenAddress: null,
+            amountRaw: tx.value.toString(),
+            fromAddress: tx.from,
+            toAddress: tx.to,
+            blockNumber: Number(blockNumber),
+          });
+          found++;
+        } catch (err) {
+          this.logger.warn(
+            `${chain.name}: failed to process native transfer ${tx.hash}: ${(err as Error).message}. ` +
+              `Will retry next poll cycle since the block range will be re-scanned if chainSyncState doesn't advance.`,
+          );
+        }
       }
     }
     if (found > 0) {
