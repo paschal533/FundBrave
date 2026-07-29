@@ -13,6 +13,13 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cookieParser());
 
+  // Exactly one reverse proxy hop expected in front of this API in every
+  // deployed environment (the platform's load balancer). NOT `true` —
+  // that trusts X-Forwarded-For unconditionally, which becomes
+  // attacker-controlled and defeats IP-based rate limiting entirely.
+  // Adjust this number if the deployment topology ever adds/removes a hop.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   app.enableCors({
     origin: config.get<string>('cors.origin'),
     credentials: true,

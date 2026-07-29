@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { User, WithdrawalStatus } from '@prisma/client';
 import { PrivyAuthGuard, RegisteredGuard, AdminGuard } from '../auth/privy-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -24,6 +25,7 @@ export class WithdrawalsController {
   }
 
   @Get('balances/:campaignId')
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
   balances(@CurrentUser() user: User, @Param('campaignId') campaignId: string) {
     return this.withdrawals.campaignBalances(user, campaignId);
   }

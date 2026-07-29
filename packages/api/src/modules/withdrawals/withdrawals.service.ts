@@ -12,6 +12,18 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SafeService, SafeTypedData } from '../safe/safe.service';
 import { EmailService } from '../email/email.service';
 import { findToken, tokensForChain } from '../donations/tokens.config';
+import { TtlCache } from '../../common/ttl-cache';
+
+export interface CampaignBalancesResult {
+  safeAddress: Address;
+  chains: {
+    chainId: number;
+    name: string;
+    deployed: boolean;
+    native: { symbol: string; decimals: number; balanceRaw: string };
+    tokens: { address: string | null; symbol: string; decimals: number; balanceRaw: string }[];
+  }[];
+}
 
 export interface WithdrawalView {
   id: string;
@@ -62,6 +74,7 @@ function toView(
 export class WithdrawalsService {
   private readonly logger = new Logger(WithdrawalsService.name);
   private readonly rootAdminEmail: string;
+  private readonly balancesCache = new TtlCache<CampaignBalancesResult>(20_000);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -74,9 +87,13 @@ export class WithdrawalsService {
 
   // ─── Balances (for the withdraw UI) ───────────────────────────
 
-  async campaignBalances(user: User, campaignId: string) {
+  async campaignBalances(user: User, campaignId: string): Promise<CampaignBalancesResult> {
     const campaign = await this.ownedActiveCampaign(user, campaignId);
     const safeAddress = campaign.safeAddress as Address;
+
+    const cacheKey = `${campaignId}:${safeAddress}`;
+    const cached = this.balancesCache.get(cacheKey);
+    if (cached) return cached;
 
     const results = await Promise.allSettled(
       this.enabledChains().map(async (chain) => {
@@ -114,12 +131,14 @@ export class WithdrawalsService {
       }),
     );
 
-    return {
+    const result: CampaignBalancesResult = {
       safeAddress,
       chains: results
         .filter(<T,>(r: PromiseSettledResult<T>): r is PromiseFulfilledResult<T> => r.status === 'fulfilled')
         .map((r) => r.value),
     };
+    this.balancesCache.set(cacheKey, result);
+    return result;
   }
 
   // ─── Creator flow ─────────────────────────────────────────────
