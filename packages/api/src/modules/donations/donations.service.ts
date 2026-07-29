@@ -1,6 +1,14 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CampaignStatus, DonationStatus, Prisma } from '@prisma/client';
-import { decodeEventLog, formatUnits, parseAbiItem, type Hex, type PublicClient } from 'viem';
+import {
+  decodeEventLog,
+  formatUnits,
+  parseAbiItem,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
+  type Hex,
+  type PublicClient,
+} from 'viem';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PricingService } from './pricing.service';
 import { findToken } from './tokens.config';
@@ -234,14 +242,26 @@ export class DonationsService {
    * trusted for the depth check — depth is computed from the receipt's own
    * blockNumber.
    *
-   * IMPORTANT: this method intentionally does NOT catch errors thrown by
-   * `client.getTransactionReceipt` / `client.getTransaction` (RPC timeouts,
-   * rate limits, node outages, "not found" while a node is still catching
-   * up). Those propagate to the caller, which must treat them as "could not
-   * verify this cycle" — not as a mismatch. Only a call that completed
-   * successfully but produced data that doesn't match the donation's claim
-   * resolves as `{ ok: false }`, since that's the only case that should ever
-   * count as a real failed attempt.
+   * IMPORTANT: this method deliberately distinguishes two different failure
+   * modes from `client.getTransactionReceipt` / `client.getTransaction`:
+   *
+   *  - Generic RPC/network errors (timeouts, rate limits, node outages) are
+   *    NOT caught here — they propagate to the caller, which must treat them
+   *    as "could not verify this cycle", touching neither `attempts` nor the
+   *    row.
+   *  - `TransactionReceiptNotFoundError` / `TransactionNotFoundError` (viem's
+   *    "no such transaction on this chain") ARE caught here and resolve as a
+   *    genuine `{ ok: false }` mismatch. A hash that was never mined at all
+   *    is not a transient condition — it will never resolve on retry — so it
+   *    must still count toward `attempts` and eventually reach ORPHANED.
+   *    Without this distinction, a completely fabricated txHash would retry
+   *    forever, consuming an RPC call every poll cycle and never getting
+   *    cleaned up.
+   *
+   * Only a call that completed successfully but produced data that doesn't
+   * match the donation's claim (or a confirmed not-found) resolves as
+   * `{ ok: false }` — that's the only case that should ever count as a real
+   * failed attempt.
    */
   private async isRealTransfer(
     client: PublicClient,
@@ -249,8 +269,15 @@ export class DonationsService {
     latestBlock: number,
     confirmations: number,
   ): Promise<{ ok: boolean; reason: string }> {
-    // Not caught here — an RPC/network failure must propagate to the caller.
-    const receipt = await client.getTransactionReceipt({ hash: d.txHash as Hex });
+    let receipt: Awaited<ReturnType<PublicClient['getTransactionReceipt']>>;
+    try {
+      receipt = await client.getTransactionReceipt({ hash: d.txHash as Hex });
+    } catch (err) {
+      if (err instanceof TransactionReceiptNotFoundError) {
+        return { ok: false, reason: `no receipt found for tx ${d.txHash} — never mined on this chain (or a fabricated hash)` };
+      }
+      throw err; // generic RPC/network error — propagate, caller treats as transient
+    }
 
     if (receipt.status !== 'success') {
       return { ok: false, reason: `receipt status is "${receipt.status}", not "success"` };
@@ -290,8 +317,15 @@ export class DonationsService {
       return { ok: true, reason: 'ok' };
     }
 
-    // Not caught here — same reasoning as getTransactionReceipt above.
-    const tx = await client.getTransaction({ hash: d.txHash as Hex });
+    let tx: Awaited<ReturnType<PublicClient['getTransaction']>>;
+    try {
+      tx = await client.getTransaction({ hash: d.txHash as Hex });
+    } catch (err) {
+      if (err instanceof TransactionNotFoundError) {
+        return { ok: false, reason: `no transaction found for ${d.txHash} — never mined on this chain (or a fabricated hash)` };
+      }
+      throw err; // generic RPC/network error — propagate, caller treats as transient
+    }
     if (!tx.to || tx.to.toLowerCase() !== safeAddress) {
       return { ok: false, reason: `native tx recipient ${tx.to ?? 'null'} does not match campaign safe ${safeAddress}` };
     }

@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { DonationStatus } from '@prisma/client';
-import { encodeEventTopics, parseAbiItem } from 'viem';
+import { encodeEventTopics, parseAbiItem, TransactionReceiptNotFoundError } from 'viem';
 import { DonationsService } from './donations.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PricingService } from './pricing.service';
@@ -232,6 +232,39 @@ describe('DonationsService.confirmDonations — receipt verification', () => {
     }
 
     expect(prisma.donation.update).not.toHaveBeenCalled();
+  });
+
+  it('DOES eventually orphan a donation whose txHash was never mined at all (unlike a genuine RPC outage)', async () => {
+    // Unlike the generic-error case above, viem throws a specific
+    // TransactionReceiptNotFoundError when a hash simply doesn't exist on
+    // chain. That's not transient — it will never resolve on retry — so it
+    // must still accumulate `attempts` and eventually orphan. Model
+    // cross-cycle persistence with a mutable "record" that donation.update
+    // writes to and findMany reads back, the way the real DB row would.
+    const record: any = { ...baseDonation, attempts: 0, status: DonationStatus.DETECTED };
+    prisma.donation.findMany.mockImplementation(() =>
+      Promise.resolve(record.status === DonationStatus.DETECTED ? [record] : []),
+    );
+    prisma.donation.update.mockImplementation(({ data }: any) => {
+      Object.assign(record, data);
+      return Promise.resolve(record);
+    });
+
+    const client = {
+      getTransactionReceipt: jest
+        .fn()
+        .mockRejectedValue(new TransactionReceiptNotFoundError({ hash: record.txHash as `0x${string}` })),
+    } as any;
+
+    const MAX_ATTEMPTS = 20; // matches DonationsService's private constant
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      // eslint-disable-next-line no-await-in-loop
+      await service.confirmDonations(11155111, 100, 5, client);
+    }
+
+    expect(record.status).toBe(DonationStatus.ORPHANED);
+    expect(record.attempts).toBe(MAX_ATTEMPTS);
+    expect(prisma.campaign.update).not.toHaveBeenCalled();
   });
 
   it('does not let one row\'s DB failure abort verification of the rest of the batch', async () => {
