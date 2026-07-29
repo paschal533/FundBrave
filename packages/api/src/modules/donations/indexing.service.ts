@@ -12,6 +12,10 @@ const TRANSFER_EVENT = parseAbiItem(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 );
 const MAX_BLOCK_RANGE = 2_000n;
+// Bounded concurrency for native-transfer block fetches — high enough to
+// meaningfully parallelize across a multi-block range, low enough not to
+// flood an RPC endpoint with simultaneous connections during catch-up.
+const BLOCK_BATCH_SIZE = 25;
 
 /**
  * Primary donation indexer. Every 2 minutes it scans, via plain RPC, both
@@ -53,13 +57,19 @@ export class IndexingService {
     this.running = true;
     try {
       const safeAddresses = await this.activeSafeAddresses();
-      for (const chain of this.chains) {
-        try {
-          await this.pollChain(chain, safeAddresses);
-        } catch (err) {
-          this.logger.warn(`Polling ${chain.name} failed: ${(err as Error).message}`);
+      // Chains are independent RPC endpoints, so poll them concurrently rather
+      // than one at a time — sequential polling of 4 mainnet chains, each with
+      // its own block-range scan, can exceed the 2-minute cron interval and
+      // fall permanently behind (see H-5).
+      const results = await Promise.allSettled(
+        this.chains.map((chain) => this.pollChain(chain, safeAddresses)),
+      );
+      results.forEach((result, i) => {
+        if (result.status === 'rejected') {
+          const chain = this.chains[i];
+          this.logger.warn(`Polling ${chain.name} failed: ${(result.reason as Error).message}`);
         }
-      }
+      });
     } finally {
       this.running = false;
     }
@@ -96,6 +106,13 @@ export class IndexingService {
     const fromBlock = sync ? BigInt(sync.lastBlock) + 1n : latest - 10n;
     if (fromBlock > latest) return;
     const toBlock = fromBlock + MAX_BLOCK_RANGE > latest ? latest : fromBlock + MAX_BLOCK_RANGE;
+
+    // Surface how far this poll's sync target trails the current chain head.
+    // A poller that silently falls behind (H-5) is only detectable via this
+    // log line — a healthy poller should show lag close to 0 every cycle.
+    this.logger.log(
+      `${chain.name}: syncing [${fromBlock}, ${toBlock}] (head ${latest}, lag ${latest - toBlock} blocks)`,
+    );
 
     const tokenAddresses = tokensForChain(chain.chainId)
       .map((t) => t.address)
@@ -154,7 +171,15 @@ export class IndexingService {
    * call for the whole ERC-20 range), but fromBlock/toBlock is normally
    * just the handful of blocks since the last 2-minute poll, so the extra
    * calls are cheap; MAX_BLOCK_RANGE still caps the worst case (a long
-   * outage) at 2,000 sequential calls.
+   * outage) at 2,000 calls.
+   *
+   * Blocks are fetched in bounded concurrent batches of BLOCK_BATCH_SIZE
+   * rather than one at a time — a purely sequential scan of a 2,000-block
+   * catch-up range (or even a routine multi-block range across 4 mainnet
+   * chains) could not keep up within the 2-minute poll interval (H-5).
+   * Batching is bounded rather than a single unbounded Promise.all across
+   * the whole range, so a long outage's catch-up doesn't open thousands of
+   * simultaneous RPC connections at once.
    *
    * Only transactions addressed to a tracked Safe get a receipt lookup
    * (cheap spam elsewhere in the block costs nothing extra), and reverted
@@ -181,37 +206,50 @@ export class IndexingService {
     const safeSet = new Set(safeAddresses.map((a) => a.toLowerCase()));
     let found = 0;
     let hadFailures = false;
-    for (let blockNumber = fromBlock; blockNumber <= toBlock; blockNumber++) {
-      const block = await client.getBlock({ blockNumber, includeTransactions: true });
-      for (const tx of block.transactions) {
-        if (typeof tx === 'string') continue;
-        if (!tx.to || tx.value === 0n) continue;
-        if (!safeSet.has(tx.to.toLowerCase())) continue;
 
-        try {
-          const receipt = await client.getTransactionReceipt({ hash: tx.hash });
-          if (receipt.status !== 'success') continue;
+    const blockNumbers: bigint[] = [];
+    for (let b = fromBlock; b <= toBlock; b++) blockNumbers.push(b);
 
-          await this.donations.recordTransfer({
-            chainId: chain.chainId,
-            txHash: tx.hash,
-            logIndex: -1,
-            tokenAddress: null,
-            amountRaw: tx.value.toString(),
-            fromAddress: tx.from,
-            toAddress: tx.to,
-            blockNumber: Number(blockNumber),
-          });
-          found++;
-        } catch (err) {
-          this.logger.warn(
-            `${chain.name}: failed to process native transfer ${tx.hash}: ${(err as Error).message}. ` +
-              `Skipping; block range will be re-scanned next poll cycle.`,
-          );
-          hadFailures = true;
+    for (let i = 0; i < blockNumbers.length; i += BLOCK_BATCH_SIZE) {
+      const batch = blockNumbers.slice(i, i + BLOCK_BATCH_SIZE);
+      const blocks = await Promise.all(
+        batch.map((blockNumber) => client.getBlock({ blockNumber, includeTransactions: true })),
+      );
+
+      for (let j = 0; j < blocks.length; j++) {
+        const block = blocks[j];
+        const blockNumber = batch[j];
+        for (const tx of block.transactions) {
+          if (typeof tx === 'string') continue;
+          if (!tx.to || tx.value === 0n) continue;
+          if (!safeSet.has(tx.to.toLowerCase())) continue;
+
+          try {
+            const receipt = await client.getTransactionReceipt({ hash: tx.hash });
+            if (receipt.status !== 'success') continue;
+
+            await this.donations.recordTransfer({
+              chainId: chain.chainId,
+              txHash: tx.hash,
+              logIndex: -1,
+              tokenAddress: null,
+              amountRaw: tx.value.toString(),
+              fromAddress: tx.from,
+              toAddress: tx.to,
+              blockNumber: Number(blockNumber),
+            });
+            found++;
+          } catch (err) {
+            this.logger.warn(
+              `${chain.name}: failed to process native transfer ${tx.hash}: ${(err as Error).message}. ` +
+                `Skipping; block range will be re-scanned next poll cycle.`,
+            );
+            hadFailures = true;
+          }
         }
       }
     }
+
     if (found > 0) {
       this.logger.log(`${chain.name}: found ${found} native transfers in [${fromBlock}, ${toBlock}]`);
     }

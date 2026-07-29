@@ -88,6 +88,54 @@ describe('IndexingService.pollNativeTransfers', () => {
     expect(hadFailures).toBe(true);
     expect(donations.recordTransfer).not.toHaveBeenCalled();
   });
+
+  it('fetches and processes every block across a range spanning multiple batches (BATCH_SIZE=25)', async () => {
+    const fromBlock = 1n;
+    const toBlock = 30n; // 30 blocks: batch 1 = [1..25], batch 2 = [26..30]
+    const mockClient = {
+      getBlock: jest.fn().mockImplementation(({ blockNumber }: { blockNumber: bigint }) =>
+        Promise.resolve({
+          transactions: [{ to: safe, from: '0xd0e', value: 1n, hash: `0xblock${blockNumber}` }],
+        }),
+      ),
+      getTransactionReceipt: jest.fn().mockResolvedValue({ status: 'success' }),
+    } as any;
+
+    const hadFailures = await (service as any).pollNativeTransfers(mockClient, chain, [safe], fromBlock, toBlock);
+
+    expect(hadFailures).toBe(false);
+    expect(mockClient.getBlock).toHaveBeenCalledTimes(30);
+    expect(donations.recordTransfer).toHaveBeenCalledTimes(30);
+    // Spot-check a block from each batch was actually recorded with the right blockNumber.
+    expect(donations.recordTransfer).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 1 }));
+    expect(donations.recordTransfer).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 30 }));
+  });
+
+  it('isolates a receipt failure in one batch from blocks processed in a later batch', async () => {
+    const fromBlock = 1n;
+    const toBlock = 26n; // batch 1 = [1..25] (block 5 fails), batch 2 = [26]
+    const mockClient = {
+      getBlock: jest.fn().mockImplementation(({ blockNumber }: { blockNumber: bigint }) =>
+        Promise.resolve({
+          transactions: [{ to: safe, from: '0xd0e', value: 1n, hash: `0xblock${blockNumber}` }],
+        }),
+      ),
+      getTransactionReceipt: jest.fn().mockImplementation(({ hash }: { hash: string }) =>
+        hash === '0xblock5'
+          ? Promise.reject(new Error('RPC timeout'))
+          : Promise.resolve({ status: 'success' }),
+      ),
+    } as any;
+
+    const hadFailures = await (service as any).pollNativeTransfers(mockClient, chain, [safe], fromBlock, toBlock);
+
+    expect(hadFailures).toBe(true);
+    // 26 blocks total, 1 failed receipt lookup -> 25 successful records, including the block
+    // in the second batch, proving the batch-1 failure didn't abort batch-2 processing.
+    expect(donations.recordTransfer).toHaveBeenCalledTimes(25);
+    expect(donations.recordTransfer).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 26 }));
+    expect(donations.recordTransfer).not.toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 5 }));
+  });
 });
 
 describe('IndexingService.pollChain - state advancement wiring', () => {
@@ -203,5 +251,71 @@ describe('IndexingService.pollChain - state advancement wiring', () => {
         create: expect.objectContaining({ lastBlock: 89 }),
       }),
     );
+  });
+});
+
+describe('IndexingService.poll — chain concurrency', () => {
+  let prisma: any;
+  let donations: any;
+  let service: IndexingService;
+
+  beforeEach(async () => {
+    prisma = {
+      chainSyncState: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
+      campaign: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    donations = { recordTransfer: jest.fn(), confirmDonations: jest.fn().mockResolvedValue(0) };
+
+    const chains = [
+      { chainId: 1, name: 'Ethereum', rpcUrl: 'https://a', explorerUrl: '', nativeSymbol: 'ETH', isTestnet: false },
+      { chainId: 8453, name: 'Base', rpcUrl: 'https://b', explorerUrl: '', nativeSymbol: 'ETH', isTestnet: false },
+    ];
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        IndexingService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: DonationsService, useValue: donations },
+        { provide: ConfigService, useValue: { get: (k: string) => (k === 'chains.enabled' ? chains : undefined) } },
+      ],
+    }).compile();
+
+    service = moduleRef.get(IndexingService);
+
+    // Stub clientFor so pollChain doesn't make real network calls; one
+    // chain resolves slowly, the other fast — if polling were sequential,
+    // total elapsed time would be sum(slow + fast); if concurrent, ~= slow.
+    (service as any).clientFor = jest.fn().mockImplementation((chain: any) => {
+      const delay = chain.chainId === 1 ? 50 : 5;
+      return {
+        getBlockNumber: () => new Promise((resolve) => setTimeout(() => resolve(100n), delay)),
+      };
+    });
+  });
+
+  it('polls all enabled chains concurrently, not sequentially', async () => {
+    const start = Date.now();
+    await service.poll();
+    const elapsed = Date.now() - start;
+
+    // Sequential would take >= 50 + 5 = 55ms; concurrent should stay close to the slower chain alone.
+    expect(elapsed).toBeLessThan(50 + 5 + 20); // generous margin, still well under the sequential sum
+    expect(donations.confirmDonations).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs a warning per rejected chain but still lets other chains complete', async () => {
+    const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    (service as any).clientFor = jest.fn().mockImplementation((chain: any) => ({
+      getBlockNumber:
+        chain.chainId === 1
+          ? () => Promise.reject(new Error('RPC unreachable'))
+          : () => Promise.resolve(100n),
+    }));
+
+    await service.poll();
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Polling Ethereum failed: RPC unreachable'));
+    // The healthy chain (Base) still completed its confirmDonations pass despite Ethereum rejecting.
+    expect(donations.confirmDonations).toHaveBeenCalledTimes(1);
   });
 });
