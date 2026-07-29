@@ -129,17 +129,22 @@ export class IndexingService {
 
     const nativeTransfersHadFailures = await this.pollNativeTransfers(client, chain, safeAddresses, fromBlock, toBlock);
 
-    // Only advance chainSyncState if native transfer processing succeeded.
-    // If any per-candidate error occurred, the entire block range will be
-    // re-scanned next poll cycle (retry semantics). ERC-20 log scan (above)
-    // already throws on failure, so if we reach here, it succeeded.
-    if (!nativeTransfersHadFailures) {
-      await this.prisma.chainSyncState.upsert({
-        where: { chainId: chain.chainId },
-        create: { chainId: chain.chainId, lastBlock: Number(toBlock) },
-        update: { lastBlock: Number(toBlock) },
-      });
-    }
+    // Always upsert chainSyncState to ensure a persisted row exists after the first poll.
+    // On success: advance normally to toBlock.
+    // On failure: anchor to fromBlock - 1, ensuring the failed range is re-scanned next cycle.
+    // This prevents the cold-start gap (when chainSyncState doesn't exist yet, the next poll
+    // after a failure would recompute fromBlock from the current latest, silently skipping
+    // the failed range). With this approach, fromBlock is always derived from a persisted
+    // lastBlock value on the 2nd+ cycle, guaranteeing retry semantics in all cases.
+    const lastBlockToStore = nativeTransfersHadFailures
+      ? Number(fromBlock) - 1 // Don't advance; re-scan this range next cycle
+      : Number(toBlock); // Advance normally on success
+
+    await this.prisma.chainSyncState.upsert({
+      where: { chainId: chain.chainId },
+      create: { chainId: chain.chainId, lastBlock: lastBlockToStore },
+      update: { lastBlock: lastBlockToStore },
+    });
   }
 
   /**
