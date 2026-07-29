@@ -212,9 +212,26 @@ export class IndexingService {
 
     for (let i = 0; i < blockNumbers.length; i += BLOCK_BATCH_SIZE) {
       const batch = blockNumbers.slice(i, i + BLOCK_BATCH_SIZE);
-      const blocks = await Promise.all(
-        batch.map((blockNumber) => client.getBlock({ blockNumber, includeTransactions: true })),
-      );
+      let blocks: Awaited<ReturnType<PublicClient['getBlock']>>[];
+      try {
+        blocks = await Promise.all(
+          batch.map((blockNumber) => client.getBlock({ blockNumber, includeTransactions: true })),
+        );
+      } catch (err) {
+        // A batch-level RPC failure (e.g. a rate limit tripped by issuing up to
+        // BLOCK_BATCH_SIZE concurrent getBlock calls) must not bypass the same
+        // hadFailures -> chainSyncState anchoring path that per-candidate
+        // failures use below — otherwise this range would be silently skipped
+        // on the next poll cycle instead of re-scanned. Preserve whatever
+        // found/hadFailures state earlier, already-successful batches
+        // accumulated, and stop scanning further batches in this range.
+        this.logger.warn(
+          `${chain.name}: failed to fetch blocks [${batch[0]}, ${batch[batch.length - 1]}]: ${(err as Error).message}. ` +
+            `Skipping; block range will be re-scanned next poll cycle.`,
+        );
+        hadFailures = true;
+        break;
+      }
 
       for (let j = 0; j < blocks.length; j++) {
         const block = blocks[j];

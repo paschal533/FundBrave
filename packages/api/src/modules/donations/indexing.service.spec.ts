@@ -136,6 +136,36 @@ describe('IndexingService.pollNativeTransfers', () => {
     expect(donations.recordTransfer).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 26 }));
     expect(donations.recordTransfer).not.toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 5 }));
   });
+
+  it('returns true (not a thrown error) when a batch-level getBlock call rejects, and does not process later batches', async () => {
+    const fromBlock = 1n;
+    const toBlock = 26n; // batch 1 = [1..25] (rejects entirely), batch 2 = [26] (must be skipped)
+    const mockClient = {
+      getBlock: jest.fn().mockImplementation(({ blockNumber }: { blockNumber: bigint }) =>
+        blockNumber <= 25n
+          ? Promise.reject(new Error('429 Too Many Requests'))
+          : Promise.resolve({ transactions: [{ to: safe, from: '0xd0e', value: 1n, hash: '0xblock26' }] }),
+      ),
+      getTransactionReceipt: jest.fn().mockResolvedValue({ status: 'success' }),
+    } as any;
+
+    // A rejecting Promise.all means every block in that batch rejects the same
+    // way (Promise.all short-circuits on first rejection); the important
+    // behavior under test is that pollNativeTransfers doesn't propagate the
+    // rejection to its caller (which would bypass pollChain's hadFailures ->
+    // chainSyncState anchoring), and that it stops before touching batch 2.
+    await expect(
+      (service as any).pollNativeTransfers(mockClient, chain, [safe], fromBlock, toBlock),
+    ).resolves.toBe(true);
+
+    expect(donations.recordTransfer).not.toHaveBeenCalled();
+    // Batch 2 (block 26) must never have been fetched — scanning stops at the
+    // first batch-level failure so the whole [fromBlock, toBlock] range is
+    // re-scanned cleanly next cycle rather than partially advancing past it.
+    expect(mockClient.getBlock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ blockNumber: 26n }),
+    );
+  });
 });
 
 describe('IndexingService.pollChain - state advancement wiring', () => {
@@ -281,25 +311,47 @@ describe('IndexingService.poll — chain concurrency', () => {
     }).compile();
 
     service = moduleRef.get(IndexingService);
-
-    // Stub clientFor so pollChain doesn't make real network calls; one
-    // chain resolves slowly, the other fast — if polling were sequential,
-    // total elapsed time would be sum(slow + fast); if concurrent, ~= slow.
-    (service as any).clientFor = jest.fn().mockImplementation((chain: any) => {
-      const delay = chain.chainId === 1 ? 50 : 5;
-      return {
-        getBlockNumber: () => new Promise((resolve) => setTimeout(() => resolve(100n), delay)),
-      };
-    });
   });
 
   it('polls all enabled chains concurrently, not sequentially', async () => {
-    const start = Date.now();
-    await service.poll();
-    const elapsed = Date.now() - start;
+    // Structural proof of concurrency, not a timing-based one: each chain's
+    // getBlockNumber() call returns a manually-controlled, never-auto-resolving
+    // promise. If pollChain(chain1) were awaited to completion before
+    // pollChain(chain2) is even invoked (the old sequential for-loop), Base's
+    // getBlockNumber would NOT have been called yet at the checkpoint below,
+    // since Ethereum's promise is still pending. Concurrent (Promise.allSettled
+    // over a .map) invokes every chain's pollChain up to its own first await
+    // before any of them can resolve.
+    let resolveEth!: (value: bigint) => void;
+    let resolveBase!: (value: bigint) => void;
+    const ethBlockNumber = new Promise<bigint>((resolve) => {
+      resolveEth = resolve;
+    });
+    const baseBlockNumber = new Promise<bigint>((resolve) => {
+      resolveBase = resolve;
+    });
+    const getBlockNumberEth = jest.fn().mockReturnValue(ethBlockNumber);
+    const getBlockNumberBase = jest.fn().mockReturnValue(baseBlockNumber);
 
-    // Sequential would take >= 50 + 5 = 55ms; concurrent should stay close to the slower chain alone.
-    expect(elapsed).toBeLessThan(50 + 5 + 20); // generous margin, still well under the sequential sum
+    (service as any).clientFor = jest.fn().mockImplementation((chain: any) => ({
+      getBlockNumber: chain.chainId === 1 ? getBlockNumberEth : getBlockNumberBase,
+    }));
+
+    const pollPromise = service.poll();
+
+    // Flush pending microtasks so poll() progresses past `await
+    // activeSafeAddresses()` and into `Promise.allSettled(this.chains.map(...))`
+    // — the .map() call synchronously invokes pollChain for every chain up to
+    // each one's own first await, without waiting for any of them to resolve.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(getBlockNumberEth).toHaveBeenCalledTimes(1);
+    expect(getBlockNumberBase).toHaveBeenCalledTimes(1);
+
+    resolveEth(100n);
+    resolveBase(100n);
+    await pollPromise;
+
     expect(donations.confirmDonations).toHaveBeenCalledTimes(2);
   });
 
