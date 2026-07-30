@@ -24,6 +24,11 @@ const ERC20_LOG_CHUNK_BLOCKS = 10n;
 // BLOCK_BATCH_SIZE, kept lower since a rate-limited free-tier RPC plan also
 // caps requests per second, not just range per request.
 const ERC20_CHUNK_BATCH_SIZE = 5;
+// Offset between each enabled chain's poll start, so their concurrent RPC
+// bursts (ERC20_CHUNK_BATCH_SIZE getLogs calls, BLOCK_BATCH_SIZE getBlock
+// calls) don't all land in the same instant and trip a free-tier RPC plan's
+// account-wide requests-per-second limit — see poll().
+const CHAIN_POLL_STAGGER_MS = 3_000;
 
 /**
  * Primary donation indexer. Every 2 minutes it scans, via plain RPC, both
@@ -68,9 +73,20 @@ export class IndexingService {
       // Chains are independent RPC endpoints, so poll them concurrently rather
       // than one at a time — sequential polling of 4 mainnet chains, each with
       // its own block-range scan, can exceed the 2-minute cron interval and
-      // fall permanently behind (see H-5).
+      // fall permanently behind (see H-5). But starting all 4 chains' bursts of
+      // concurrent RPC calls (getLogs chunks, getBlock batches) in the exact
+      // same instant can trip a free-tier RPC plan's account-wide
+      // requests-per-second limit even though each chain's own range/batch
+      // sizing stays within the plan's per-call limits — observed in
+      // production as chainSyncState repeatedly failing to advance despite
+      // each chain's scan being correctly chunked. Staggering chain start
+      // times spreads that burst out while still starting chain N+1 well
+      // before chain N finishes (unlike a true sequential loop, which would
+      // reintroduce the H-5 regression).
       const results = await Promise.allSettled(
-        this.chains.map((chain) => this.pollChain(chain, safeAddresses)),
+        this.chains.map((chain, i) =>
+          this.pollChainStaggered(chain, safeAddresses, i * CHAIN_POLL_STAGGER_MS),
+        ),
       );
       results.forEach((result, i) => {
         if (result.status === 'rejected') {
@@ -81,6 +97,17 @@ export class IndexingService {
     } finally {
       this.running = false;
     }
+  }
+
+  private async pollChainStaggered(
+    chain: ChainConfig,
+    safeAddresses: Address[],
+    delayMs: number,
+  ): Promise<void> {
+    if (delayMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    }
+    return this.pollChain(chain, safeAddresses);
   }
 
   private async activeSafeAddresses(): Promise<Address[]> {

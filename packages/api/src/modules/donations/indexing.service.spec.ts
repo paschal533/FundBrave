@@ -435,17 +435,26 @@ describe('IndexingService.poll — chain concurrency', () => {
     }).compile();
 
     service = moduleRef.get(IndexingService);
+    jest.useFakeTimers();
   });
 
-  it('polls all enabled chains concurrently, not sequentially', async () => {
-    // Structural proof of concurrency, not a timing-based one: each chain's
-    // getBlockNumber() call returns a manually-controlled, never-auto-resolving
-    // promise. If pollChain(chain1) were awaited to completion before
-    // pollChain(chain2) is even invoked (the old sequential for-loop), Base's
-    // getBlockNumber would NOT have been called yet at the checkpoint below,
-    // since Ethereum's promise is still pending. Concurrent (Promise.allSettled
-    // over a .map) invokes every chain's pollChain up to its own first await
-    // before any of them can resolve.
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  // Matches CHAIN_POLL_STAGGER_MS in indexing.service.ts — chains no longer
+  // all start in the same instant (that's the fix: see the code comment on
+  // CHAIN_POLL_STAGGER_MS for why), so this test asserts staggered-but-still-
+  // concurrent starts instead of simultaneous ones.
+  const STAGGER_MS = 3_000;
+
+  it('starts each chain after its own stagger offset, without waiting for the previous chain to finish', async () => {
+    // Each chain's getBlockNumber() call returns a manually-controlled,
+    // never-auto-resolving promise. If pollChain(chain1) were awaited to
+    // completion before pollChain(chain2) is even invoked (a true sequential
+    // loop — the H-5 regression this must not reintroduce), Base's
+    // getBlockNumber would never be called at all here, since Ethereum's
+    // promise never resolves.
     let resolveEth!: (value: bigint) => void;
     let resolveBase!: (value: bigint) => void;
     const ethBlockNumber = new Promise<bigint>((resolve) => {
@@ -463,13 +472,15 @@ describe('IndexingService.poll — chain concurrency', () => {
 
     const pollPromise = service.poll();
 
-    // Flush pending microtasks so poll() progresses past `await
-    // activeSafeAddresses()` and into `Promise.allSettled(this.chains.map(...))`
-    // — the .map() call synchronously invokes pollChain for every chain up to
-    // each one's own first await, without waiting for any of them to resolve.
-    await new Promise((resolve) => setImmediate(resolve));
-
+    // Chain 0 (Ethereum, stagger offset 0) starts immediately; chain 1 (Base,
+    // offset STAGGER_MS) must not have started yet.
+    await jest.advanceTimersByTimeAsync(0);
     expect(getBlockNumberEth).toHaveBeenCalledTimes(1);
+    expect(getBlockNumberBase).not.toHaveBeenCalled();
+
+    // Advancing past Base's offset starts it too — critically, without
+    // waiting for Ethereum's still-pending getBlockNumber to resolve first.
+    await jest.advanceTimersByTimeAsync(STAGGER_MS);
     expect(getBlockNumberBase).toHaveBeenCalledTimes(1);
 
     resolveEth(100n);
@@ -488,7 +499,9 @@ describe('IndexingService.poll — chain concurrency', () => {
           : () => Promise.resolve(100n),
     }));
 
-    await service.poll();
+    const pollPromise = service.poll();
+    await jest.advanceTimersByTimeAsync(STAGGER_MS);
+    await pollPromise;
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Polling Ethereum failed: RPC unreachable'));
     // The healthy chain (Base) still completed its confirmDonations pass despite Ethereum rejecting.
