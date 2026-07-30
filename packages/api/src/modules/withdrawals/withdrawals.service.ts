@@ -16,6 +16,18 @@ import { TtlCache } from '../../common/ttl-cache';
 
 const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
+// Campaign titles and rejection reasons are user-controlled; they're embedded
+// into HTML email bodies below, so they must be escaped to prevent HTML
+// injection in the admin's/creator's email client.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 export interface CampaignBalancesResult {
   safeAddress: Address;
   chains: {
@@ -252,7 +264,7 @@ export class WithdrawalsService {
       void this.email.send(
         this.rootAdminEmail,
         `FundBrave: withdrawal approval needed — ${w.campaign.title}`,
-        `<p>A withdrawal request for campaign <b>${w.campaign.title}</b> is awaiting your co-signature in the admin dashboard.</p>`,
+        `<p>A withdrawal request for campaign <b>${escapeHtml(w.campaign.title)}</b> is awaiting your co-signature in the admin dashboard.</p>`,
       );
     }
     return toView(updated);
@@ -331,7 +343,11 @@ export class WithdrawalsService {
     await this.prisma.adminAuditLog.create({
       data: { adminId: admin.id, action: 'WITHDRAWAL_REJECT', targetId: id, metadata: { reason } },
     });
-    await this.notifyCreator(w.campaign.creatorId, `Your withdrawal for "${w.campaign.title}" was declined`, `<p>Reason: ${reason}</p>`);
+    await this.notifyCreator(
+      w.campaign.creatorId,
+      `Your withdrawal for "${w.campaign.title}" was declined`,
+      `<p>Reason: ${escapeHtml(reason)}</p>`,
+    );
     return toView(updated);
   }
 
@@ -407,7 +423,7 @@ export class WithdrawalsService {
       await this.notifyCreator(
         w.campaign.creatorId,
         `Your withdrawal for "${w.campaign.title}" failed`,
-        `<p>${message}</p><p>You can request a new withdrawal from your dashboard.</p>`,
+        `<p>${escapeHtml(message)}</p><p>You can request a new withdrawal from your dashboard.</p>`,
       );
     }
   }
