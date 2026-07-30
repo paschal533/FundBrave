@@ -12,9 +12,12 @@ import type { NextConfig } from "next";
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://auth.privy.io https://*.privy.io",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https: http://localhost:*",
-  "font-src 'self' data:",
+  // fonts.googleapis.com: RainbowKit's WalletConnect modal loads a Google
+  // Fonts stylesheet at runtime. blob: on img-src: the same modal renders
+  // wallet-connect QR codes as blob: image URLs, not https:.
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https: http://localhost:*",
+  "font-src 'self' data: https://fonts.gstatic.com",
   // fundbrave-media.s3...: media uploads PUT directly to a presigned S3 URL
   // from the browser (see hooks/useCampaigns.ts's presignUpload flow). A CSP
   // host-source only supports one leading wildcard, so this must be the
