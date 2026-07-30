@@ -15,7 +15,11 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https: http://localhost:*",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.privy.io wss://*.privy.io https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.reown.com wss://*.reown.com https://*.web3modal.org https://*.g.alchemy.com https://*.publicnode.com https://sepolia.base.org https://mainnet.base.org https://polygon-rpc.com https://arb1.arbitrum.io https://eth.llamarpc.com http://localhost:4000 https://fundbrave-api.onrender.com",
+  // fundbrave-media.s3...: media uploads PUT directly to a presigned S3 URL
+  // from the browser (see hooks/useCampaigns.ts's presignUpload flow). A CSP
+  // host-source only supports one leading wildcard, so this must be the
+  // exact bucket host rather than a multi-wildcard pattern.
+  "connect-src 'self' https://*.privy.io wss://*.privy.io https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.reown.com wss://*.reown.com https://*.web3modal.org https://*.g.alchemy.com https://*.publicnode.com https://sepolia.base.org https://mainnet.base.org https://polygon-rpc.com https://arb1.arbitrum.io https://eth.llamarpc.com http://localhost:4000 https://fundbrave-api.onrender.com https://fundbrave-media.s3.us-east-1.amazonaws.com",
   "frame-src 'self' https://auth.privy.io https://*.privy.io https://verify.walletconnect.com https://verify.walletconnect.org",
   "object-src 'none'",
   "base-uri 'self'",
