@@ -28,7 +28,9 @@ import {
 } from "@/components/campaigns/CampaignCard";
 import { WithdrawModal } from "@/components/withdrawals/WithdrawModal";
 import { WithdrawalsList } from "@/components/withdrawals/WithdrawalsList";
+import { SendFundsModal } from "@/components/wallet/SendFundsModal";
 import { Banknote } from "lucide-react";
+import { Send } from "@/components/ui/icons";
 
 // ============================================================================
 // My campaigns section
@@ -218,6 +220,7 @@ function DashboardContent() {
   const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
 
   if (!user) return null; // AuthGuard guarantees this never renders
 
@@ -283,18 +286,28 @@ function DashboardContent() {
                 {truncateWalletAddress(user.walletAddress)}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={handleCopy}
-              aria-label="Copy wallet address"
-              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-overlay hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-            >
-              {copied ? (
-                <Check size={16} className="text-green-500" />
-              ) : (
-                <Copy size={16} />
-              )}
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={handleCopy}
+                aria-label="Copy wallet address"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-overlay hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+              >
+                {copied ? (
+                  <Check size={16} className="text-green-500" />
+                ) : (
+                  <Copy size={16} />
+                )}
+              </button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSendOpen(true)}
+              >
+                <Send size={16} aria-hidden="true" />
+                Send
+              </Button>
+            </div>
           </div>
         ) : (
           <p className="rounded-xl border border-white/10 bg-surface-sunken px-4 py-3 text-sm text-text-tertiary">
@@ -326,6 +339,8 @@ function DashboardContent() {
 
       {/* Withdrawals (renders only when the user has any) */}
       <WithdrawalsList />
+
+      <SendFundsModal open={sendOpen} onClose={() => setSendOpen(false)} />
     </main>
   );
 }
