@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/layout/BrandMark";
 
 interface FooterLink {
   label: string;
@@ -48,7 +49,8 @@ export function Footer() {
     <footer className="bg-[oklch(0.145_0.02_60)] px-4 py-12 text-white sm:px-6">
       <div className="mx-auto grid w-full max-w-[1400px] grid-cols-2 gap-8 sm:grid-cols-4">
         <div className="col-span-2 flex flex-col gap-2 sm:col-span-1">
-          <span className="font-display text-xl font-bold tracking-tight">
+          <span className="flex items-center gap-2 font-display text-xl font-bold tracking-tight">
+            <BrandMark size={22} />
             <span className="bg-[image:var(--gradient-brand-fixed)] bg-clip-text text-transparent">
               FundBrave
             </span>

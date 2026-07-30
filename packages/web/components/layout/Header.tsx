@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Spinner } from "@/components/ui/Spinner";
 import { Plus } from "@/components/ui/icons";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { BrandMark } from "@/components/layout/BrandMark";
 
 export function Header() {
   const router = useRouter();
@@ -32,9 +33,10 @@ export function Header() {
         <div className="flex min-w-0 items-center gap-4 sm:gap-8">
           <Link
             href="/"
-            className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+            className="flex shrink-0 items-center gap-2 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
             aria-label="FundBrave home"
           >
+            <BrandMark size={22} />
             <span className="font-display text-xl font-bold tracking-tight">
               <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent">
                 FundBrave

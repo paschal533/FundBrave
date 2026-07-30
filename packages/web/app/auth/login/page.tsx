@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LoginScreen } from "@/components/auth/LoginScreen";
 
 export const metadata: Metadata = {
-  title: "Sign in | FundBrave",
+  title: "Sign in",
   description: "Sign in to FundBrave with your email.",
 };
 

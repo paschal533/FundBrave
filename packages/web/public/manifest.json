@@ -1,0 +1,13 @@
+{
+  "name": "FundBrave",
+  "short_name": "FundBrave",
+  "description": "Borderless fundraising, powered by crypto and owned by communities.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e06a3c",
+  "icons": [
+    { "src": "/icon-mark-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-mark-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

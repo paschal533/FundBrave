@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/layout/BrandMark";
 
 export function LoginScreen() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export function LoginScreen() {
       className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 px-4 text-center"
     >
       {/* FundBrave mark */}
+      <BrandMark size={48} />
       <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
         <span className="bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent">
           FundBrave
