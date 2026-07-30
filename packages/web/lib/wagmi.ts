@@ -11,14 +11,7 @@
  */
 
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import {
-  arbitrum,
-  base,
-  baseSepolia,
-  mainnet,
-  polygon,
-  sepolia,
-} from "viem/chains";
+import { arbitrum, base, mainnet, polygon } from "viem/chains";
 
 const rawProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 
@@ -55,8 +48,16 @@ if (typeof window !== "undefined") {
 
 /**
  * The wagmi config — null in degraded mode. The chain list mirrors the
- * chains the API's /api/donations/tokens endpoint can serve; donations go
- * to the same Safe address on every supported chain.
+ * mainnet chains the production API has enabled (ENABLED_CHAIN_IDS);
+ * donations go to the same Safe address on every supported chain.
+ *
+ * Deliberately mainnet-only, no testnets: a WalletConnect session proposal
+ * lists every requested chain, and mobile/exchange wallets (observed with
+ * Binance Wallet) commonly reject the whole session — not just the
+ * unsupported chain — if any requested chain isn't in their own supported
+ * list. Testnets like Base Sepolia are exactly the kind of chain those
+ * wallets don't support, and this app is deployed to mainnet only, so they
+ * serve no purpose here and only break real wallet connections.
  *
  * appUrl must be the real deployed domain, not omitted — WalletConnect's
  * relay reports whatever origin it resolves to, and that has to match a
@@ -70,7 +71,7 @@ export const wagmiConfig = walletConnectProjectId
         "Decentralized fundraising with real Gnosis Safe multisig donation wallets.",
       appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://fundbrave.app",
       projectId: walletConnectProjectId,
-      chains: [base, mainnet, polygon, arbitrum, baseSepolia, sepolia],
+      chains: [base, mainnet, polygon, arbitrum],
       ssr: true,
     })
   : null;
