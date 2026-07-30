@@ -326,6 +326,42 @@ describe('IndexingService.pollChain - state advancement wiring', () => {
     );
   });
 
+  it('chunks a >10-block range into multiple <=10-block getLogs calls that tile the range with no gaps or overlaps', async () => {
+    const fromBlock = 1n;
+    const toBlock = 25n; // chunks: [1,10] [11,20] [21,25]
+    const getLogs = jest.fn().mockResolvedValue([]);
+    const client = { getLogs } as any;
+
+    await (service as any).scanErc20Transfers(client, chain, [safe], fromBlock, toBlock);
+
+    expect(getLogs).toHaveBeenCalledTimes(3);
+    expect(getLogs).toHaveBeenNthCalledWith(1, expect.objectContaining({ fromBlock: 1n, toBlock: 10n }));
+    expect(getLogs).toHaveBeenNthCalledWith(2, expect.objectContaining({ fromBlock: 11n, toBlock: 20n }));
+    expect(getLogs).toHaveBeenNthCalledWith(3, expect.objectContaining({ fromBlock: 21n, toBlock: 25n }));
+  });
+
+  it('aggregates and records ERC-20 transfers found across multiple chunks', async () => {
+    const fromBlock = 1n;
+    const toBlock = 25n;
+    const usdc = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+    const getLogs = jest
+      .fn()
+      .mockResolvedValueOnce([
+        { transactionHash: '0xa', logIndex: 0, address: usdc, blockNumber: 5n, args: { value: 1n, from: '0xd0e', to: safe } },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { transactionHash: '0xb', logIndex: 0, address: usdc, blockNumber: 22n, args: { value: 2n, from: '0xd0e', to: safe } },
+      ]);
+    const client = { getLogs } as any;
+
+    await (service as any).scanErc20Transfers(client, chain, [safe], fromBlock, toBlock);
+
+    expect(donations.recordTransfer).toHaveBeenCalledTimes(2);
+    expect(donations.recordTransfer).toHaveBeenCalledWith(expect.objectContaining({ txHash: '0xa' }));
+    expect(donations.recordTransfer).toHaveBeenCalledWith(expect.objectContaining({ txHash: '0xb' }));
+  });
+
   it('does not anchor (or abort the scan) when only the confirmation pass fails', async () => {
     prisma.chainSyncState.findUnique.mockResolvedValue(null); // cold start
     donations.confirmDonations.mockRejectedValue(new Error('confirmation query timed out'));

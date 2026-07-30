@@ -16,6 +16,14 @@ const MAX_BLOCK_RANGE = 2_000n;
 // meaningfully parallelize across a multi-block range, low enough not to
 // flood an RPC endpoint with simultaneous connections during catch-up.
 const BLOCK_BATCH_SIZE = 25;
+// Matches the eth_getLogs range cap on free-tier RPC plans (observed on
+// Alchemy: "up to a 10 block range"). Smaller windows work on any provider,
+// so this is safe even on paid plans with a larger or no cap.
+const ERC20_LOG_CHUNK_BLOCKS = 10n;
+// Bounded concurrency for chunked getLogs calls — same rationale as
+// BLOCK_BATCH_SIZE, kept lower since a rate-limited free-tier RPC plan also
+// caps requests per second, not just range per request.
+const ERC20_CHUNK_BATCH_SIZE = 5;
 
 /**
  * Primary donation indexer. Every 2 minutes it scans, via plain RPC, both
@@ -199,10 +207,28 @@ export class IndexingService {
   }
 
   /**
-   * Single getLogs call covering every allowlisted ERC-20 on this chain for the
-   * whole [fromBlock, toBlock] range. Errors are intentionally NOT caught here —
-   * pollChain's surrounding try/catch owns them so they reach the same
-   * chainSyncState anchoring path as native-transfer failures.
+   * getLogs covering every allowlisted ERC-20 on this chain for the whole
+   * [fromBlock, toBlock] range, chunked into windows of ERC20_LOG_CHUNK_BLOCKS.
+   *
+   * Chunking is required, not an optimization: free-tier RPC plans (observed
+   * on Alchemy) reject eth_getLogs outright once the requested range exceeds
+   * 10 blocks. Because a failed range is never advanced (see pollChain), and
+   * [fromBlock, toBlock] only grows on each retried failure, a single
+   * over-the-cap getLogs call doesn't just fail once — it permanently stalls
+   * ERC-20 donation detection for that chain, since every subsequent attempt
+   * covers an even larger, still-rejected range. This surfaced in production
+   * as a confirmed real donation that was on-chain but never counted.
+   *
+   * Chunks are fetched in bounded concurrent batches (ERC20_CHUNK_BATCH_SIZE)
+   * for the same reason pollNativeTransfers batches block fetches: a fully
+   * sequential scan of a large catch-up range would be too slow, but firing
+   * all chunks at once risks tripping the RPC's requests-per-second limit too.
+   *
+   * Errors are intentionally NOT caught here — pollChain's surrounding
+   * try/catch owns them so they reach the same chainSyncState anchoring path
+   * as native-transfer failures. recordTransfer is idempotent (unique
+   * constraint on chainId+txHash+logIndex), so re-scanning an already-partially
+   * -processed range after a later chunk's failure is safe.
    */
   private async scanErc20Transfers(
     client: PublicClient,
@@ -216,29 +242,47 @@ export class IndexingService {
       .filter((a): a is string => a !== null) as Address[];
     if (tokenAddresses.length === 0) return;
 
-    const logs = await client.getLogs({
-      address: tokenAddresses,
-      event: TRANSFER_EVENT,
-      args: { to: safeAddresses },
-      fromBlock,
-      toBlock,
-    });
-    for (const log of logs) {
-      if (log.args.value === undefined || !log.args.from || !log.args.to) continue;
-      await this.donations.recordTransfer({
-        chainId: chain.chainId,
-        txHash: log.transactionHash,
-        logIndex: log.logIndex,
-        tokenAddress: log.address,
-        amountRaw: log.args.value.toString(),
-        fromAddress: log.args.from,
-        toAddress: log.args.to,
-        blockNumber: Number(log.blockNumber),
-      });
+    const chunks: { from: bigint; to: bigint }[] = [];
+    for (let start = fromBlock; start <= toBlock; start += ERC20_LOG_CHUNK_BLOCKS) {
+      const end =
+        start + ERC20_LOG_CHUNK_BLOCKS - 1n > toBlock ? toBlock : start + ERC20_LOG_CHUNK_BLOCKS - 1n;
+      chunks.push({ from: start, to: end });
     }
-    if (logs.length > 0) {
+
+    let totalFound = 0;
+    for (let i = 0; i < chunks.length; i += ERC20_CHUNK_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + ERC20_CHUNK_BATCH_SIZE);
+      const batchLogs = await Promise.all(
+        batch.map((c) =>
+          client.getLogs({
+            address: tokenAddresses,
+            event: TRANSFER_EVENT,
+            args: { to: safeAddresses },
+            fromBlock: c.from,
+            toBlock: c.to,
+          }),
+        ),
+      );
+      for (const logs of batchLogs) {
+        for (const log of logs) {
+          if (log.args.value === undefined || !log.args.from || !log.args.to) continue;
+          await this.donations.recordTransfer({
+            chainId: chain.chainId,
+            txHash: log.transactionHash,
+            logIndex: log.logIndex,
+            tokenAddress: log.address,
+            amountRaw: log.args.value.toString(),
+            fromAddress: log.args.from,
+            toAddress: log.args.to,
+            blockNumber: Number(log.blockNumber),
+          });
+          totalFound++;
+        }
+      }
+    }
+    if (totalFound > 0) {
       this.logger.log(
-        `${chain.name}: found ${logs.length} ERC-20 transfers in [${fromBlock}, ${toBlock}]`,
+        `${chain.name}: found ${totalFound} ERC-20 transfers in [${fromBlock}, ${toBlock}]`,
       );
     }
   }
