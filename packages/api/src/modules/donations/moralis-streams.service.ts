@@ -11,9 +11,11 @@ const STREAM_TAG = 'fundbrave-mvp';
 
 /**
  * Manages a single Moralis Stream watching every campaign Safe address on
- * all enabled chains (native + ERC-20 transfers). Fully optional: when the
- * API key / webhook URL are placeholders, the fallback RPC poller carries
- * detection alone.
+ * all enabled chains (native + ERC-20 transfers). Fully optional low-latency
+ * redundancy: IndexingService's RPC poller detects every transfer type on
+ * its own within ~2 minutes, so when the API key / webhook URL are
+ * placeholders (the default), nothing is lost — donations just confirm on
+ * the poller's schedule instead of near-instantly.
  */
 @Injectable()
 export class MoralisStreamsService implements OnModuleInit {
