@@ -653,47 +653,17 @@ function AddressTab({
   safeAddress: string;
   chains: SupportedChain[];
 }) {
-  const [selectedChainId, setSelectedChainId] = useState<number | null>(null);
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [amount, setAmount] = useState("");
-  const [debouncedAmount, setDebouncedAmount] = useState("");
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedAmount(amount), 450);
-    return () => clearTimeout(timer);
-  }, [amount]);
-
-  const chain = useMemo<SupportedChain | null>(
-    () =>
-      chains.find((c) => c.chainId === selectedChainId) ?? chains[0] ?? null,
-    [chains, selectedChainId]
-  );
-  const token = useMemo<SupportedToken | null>(() => {
-    if (!chain) return null;
-    return (
-      chain.tokens.find((t) => t.symbol === selectedSymbol) ??
-      chain.tokens[0] ??
-      null
-    );
-  }, [chain, selectedSymbol]);
-
-  // Optional amount → base units for the EIP-681 URI. Invalid/empty input
-  // simply omits the amount from the QR.
-  const amountBaseUnits = useMemo<string | null>(() => {
-    const trimmed = debouncedAmount.trim();
-    if (!trimmed || !token) return null;
-    if (!validateAmount(trimmed, maxDecimalsFor(token)).ok) return null;
-    try {
-      return parseUnits(trimmed, token.decimals).toString();
-    } catch {
-      return null;
-    }
-  }, [debouncedAmount, token]);
+  // The vault address is identical on every supported chain (CREATE2), so
+  // there's nothing for the donor to pick here — the QR/payment link just
+  // needs *a* chain+token to build a valid EIP-681 URI, defaulting to the
+  // first supported one.
+  const chain = chains[0] ?? null;
+  const token = chain?.tokens[0] ?? null;
 
   const qrQuery = useDonationQr(campaignId, {
     chainId: chain?.chainId ?? null,
     tokenAddress: token?.address ?? null,
-    amountBaseUnits,
+    amountBaseUnits: null,
   });
 
   if (!chain || !token) {
@@ -706,35 +676,6 @@ function AddressTab({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <FieldLabel>Network</FieldLabel>
-        <ChainChips
-          chains={chains}
-          selectedChainId={chain.chainId}
-          onSelect={(chainId) => {
-            setSelectedChainId(chainId);
-            setSelectedSymbol(null);
-          }}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <FieldLabel>Token</FieldLabel>
-        <TokenChips
-          tokens={chain.tokens}
-          selectedSymbol={token.symbol}
-          onSelect={setSelectedSymbol}
-        />
-      </div>
-
-      <AmountInput
-        amount={amount}
-        symbol={token.symbol}
-        error={null}
-        onChange={setAmount}
-        label="Amount (optional)"
-      />
-
       {/* QR */}
       <div className="flex justify-center">
         {qrQuery.isLoading ? (
