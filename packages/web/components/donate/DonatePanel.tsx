@@ -343,14 +343,20 @@ function WalletTab({
   } = useWriteContract();
 
   const hash = nativeHash ?? erc20Hash;
+  // Watched in the background, not blocked on: viem's default RPCs for this
+  // read are shared/rate-limited enough that the poll can silently stall
+  // (see NEXT_PUBLIC_ALCHEMY_API_KEY in wagmi.ts), which used to leave the
+  // donate button spinning on "Confirming on-chain..." indefinitely even
+  // though the transaction had already succeeded. The button now moves on
+  // as soon as the wallet returns a hash; this hook still runs so a genuine
+  // on-chain revert can retroactively swap the "sent" panel for the failure
+  // one, it just no longer gates the UI.
   const {
-    isLoading: confirming,
     isSuccess: receiptReady,
     isError: receiptError,
     data: receipt,
   } = useWaitForTransactionReceipt({ hash });
 
-  const confirmedOk = receiptReady && receipt?.status === "success";
   const failedOnChain =
     receiptError || (receiptReady && receipt?.status === "reverted");
   const awaitingWallet = nativeSending || erc20Sending;
@@ -375,7 +381,7 @@ function WalletTab({
   // On confirmation, nudge campaign totals + donation queries. The donation
   // itself appears once the API confirms the transfer (webhook/poller).
   useEffect(() => {
-    if (!confirmedOk) return;
+    if (!receiptReady || receipt?.status !== "success") return;
     void queryClient.invalidateQueries({ queryKey: campaignKeys.all });
     void queryClient.invalidateQueries({
       queryKey: donationKeys.lists(campaignId),
@@ -383,7 +389,7 @@ function WalletTab({
     void queryClient.invalidateQueries({
       queryKey: donationKeys.breakdown(campaignId),
     });
-  }, [confirmedOk, queryClient, campaignId]);
+  }, [receiptReady, receipt, queryClient, campaignId]);
 
   const handleSelectChain = (chainId: number) => {
     setSelectedChainId(chainId);
@@ -439,38 +445,10 @@ function WalletTab({
     setTxChainId(null);
   };
 
-  // ---- Success state -------------------------------------------------------
-  if (hash && confirmedOk) {
-    const txChain = chains.find((c) => c.chainId === txChainId) ?? undefined;
-    const txUrl = explorerTxUrl(txChain, hash);
-    return (
-      <div className="flex flex-col items-center gap-3 py-4 text-center">
-        <CheckCircle2 size={40} className="text-brave-mint" aria-hidden="true" />
-        <p className="text-base font-semibold text-foreground">
-          Thank you for your donation!
-        </p>
-        <p className="text-xs text-text-tertiary">
-          It can take a minute or two for your donation to appear here.
-        </p>
-        {txUrl && (
-          <a
-            href={txUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-          >
-            View transaction
-            <ExternalLink size={14} aria-hidden="true" />
-          </a>
-        )}
-        <Button variant="outline" size="sm" onClick={handleReset}>
-          Make another donation
-        </Button>
-      </div>
-    );
-  }
-
-  // ---- Failed on-chain -----------------------------------------------------
+  // ---- Failed on-chain -------------------------------------------------------
+  // Checked before the "sent" state below: a transaction can be broadcast
+  // (hash exists) and only later turn out to have reverted, so this must
+  // take priority over the optimistic "sent" panel once we learn about it.
   if (hash && failedOnChain) {
     const txChain = chains.find((c) => c.chainId === txChainId) ?? undefined;
     const txUrl = explorerTxUrl(txChain, hash);
@@ -498,6 +476,42 @@ function WalletTab({
         )}
         <Button variant="outline" size="sm" onClick={handleReset}>
           Try again
+        </Button>
+      </div>
+    );
+  }
+
+  // ---- Sent state ------------------------------------------------------------
+  // Shown as soon as the wallet returns a transaction hash, not once it's
+  // mined — waiting for useWaitForTransactionReceipt to resolve can hang the
+  // button on a shared/rate-limited RPC even after the transaction already
+  // succeeded. The receipt watch above still runs in the background and will
+  // swap this out for the failure panel if the transaction actually reverts.
+  if (hash) {
+    const txChain = chains.find((c) => c.chainId === txChainId) ?? undefined;
+    const txUrl = explorerTxUrl(txChain, hash);
+    return (
+      <div className="flex flex-col items-center gap-3 py-4 text-center">
+        <CheckCircle2 size={40} className="text-brave-mint" aria-hidden="true" />
+        <p className="text-base font-semibold text-foreground">
+          Your donation was sent!
+        </p>
+        <p className="text-xs text-text-tertiary">
+          It can take a few minutes for the campaign balance to update.
+        </p>
+        {txUrl && (
+          <a
+            href={txUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+          >
+            View transaction
+            <ExternalLink size={14} aria-hidden="true" />
+          </a>
+        )}
+        <Button variant="outline" size="sm" onClick={handleReset}>
+          Make another donation
         </Button>
       </div>
     );
@@ -626,10 +640,8 @@ function WalletTab({
             <Button
               fullWidth
               onClick={handleDonate}
-              loading={awaitingWallet || confirming}
-              loadingText={
-                awaitingWallet ? "Confirm in your wallet..." : "Confirming on-chain..."
-              }
+              loading={awaitingWallet}
+              loadingText="Confirm in your wallet..."
             >
               Donate {amount ? `${amount} ${token.symbol}` : "now"}
             </Button>

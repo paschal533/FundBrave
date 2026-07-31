@@ -11,6 +11,7 @@
  */
 
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { http } from "wagmi";
 import { arbitrum, base, mainnet, polygon } from "viem/chains";
 
 const rawProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
@@ -46,6 +47,25 @@ if (typeof window !== "undefined") {
   }
 }
 
+// getDefaultConfig falls back to viem's bundled public RPC endpoints per
+// chain when no transports are given. Those are unauthenticated, shared,
+// rate-limited endpoints — useWaitForTransactionReceipt (the "Confirming
+// on-chain..." step after a donation is sent) polls through them, and under
+// load the poll can silently stall with no error, leaving the donate button
+// spinning indefinitely even though the transaction already succeeded.
+// Route through the same Alchemy key the API uses server-side (Alchemy
+// keys are designed to be used client-side; protect via domain allowlisting
+// in the Alchemy dashboard, not secrecy) whenever it's configured.
+const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+const transports = alchemyKey
+  ? {
+      [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`),
+      [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`),
+      [polygon.id]: http(`https://polygon-mainnet.g.alchemy.com/v2/${alchemyKey}`),
+      [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${alchemyKey}`),
+    }
+  : undefined;
+
 /**
  * The wagmi config — null in degraded mode. The chain list mirrors the
  * mainnet chains the production API has enabled (ENABLED_CHAIN_IDS);
@@ -72,6 +92,7 @@ export const wagmiConfig = walletConnectProjectId
       appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://fundbrave.app",
       projectId: walletConnectProjectId,
       chains: [base, mainnet, polygon, arbitrum],
+      transports,
       ssr: true,
     })
   : null;
