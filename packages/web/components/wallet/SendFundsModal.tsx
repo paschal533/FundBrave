@@ -91,8 +91,17 @@ export function SendFundsModal({ open, onClose }: SendFundsModalProps) {
     onClose();
   };
 
+  // Native sends pay gas out of the same balance being sent, and this
+  // component has no live gas-price estimate available (Privy's
+  // sendTransaction handles gas internally, not exposed here) — filling in
+  // the exact full balance would leave nothing for gas and the send would
+  // fail. Rather than guess a reserve that could still be wrong on a given
+  // chain/day, disable Max for native tokens; ERC-20 sends are unaffected
+  // since their balance is a separate asset from the gas token.
+  const maxDisabledForNative = activeToken?.address === null;
+
   const handleMax = () => {
-    if (!activeToken) return;
+    if (!activeToken || maxDisabledForNative) return;
     setAmount(formatTokenAmount(activeToken.balanceRaw, activeToken.decimals, activeToken.decimals));
     setAmountError(null);
   };
@@ -264,7 +273,13 @@ export function SendFundsModal({ open, onClose }: SendFundsModalProps) {
                 <button
                   type="button"
                   onClick={handleMax}
-                  className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-brave-mint transition-colors hover:bg-brave-mint/10"
+                  disabled={maxDisabledForNative}
+                  title={
+                    maxDisabledForNative
+                      ? "Some balance needs to stay unsent to cover the network fee"
+                      : undefined
+                  }
+                  className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-brave-mint transition-colors hover:bg-brave-mint/10 disabled:cursor-not-allowed disabled:text-text-tertiary disabled:hover:bg-transparent"
                 >
                   Max
                 </button>

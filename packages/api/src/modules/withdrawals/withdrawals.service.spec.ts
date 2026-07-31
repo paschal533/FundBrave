@@ -52,6 +52,7 @@ describe('WithdrawalsService (execute path)', () => {
       isDeployed: jest.fn().mockResolvedValue(true),
       predictSafeAddress: jest.fn().mockResolvedValue({ safeAddress, saltNonce: '1' }),
       buildWithdrawalTx: jest.fn().mockReturnValue({}),
+      hashSafeTx: jest.fn().mockReturnValue(withdrawal.safeTxHash),
       getRootAdminAddress: jest.fn().mockReturnValue(adminAddress),
       execTransaction: jest.fn().mockResolvedValue('0xexectx'),
       deploySafe: jest.fn().mockResolvedValue('0xdeploytx'),
@@ -93,6 +94,20 @@ describe('WithdrawalsService (execute path)', () => {
 
   it('refuses to execute if the predicted address no longer matches the stored safeAddress', async () => {
     safe.predictSafeAddress.mockResolvedValue({ safeAddress: '0xDIFFERENT00000000000000000000000000000', saltNonce: '1' });
+
+    await (service as any).execute('wd-1');
+
+    expect(safe.execTransaction).not.toHaveBeenCalled();
+    expect(prisma.withdrawalRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'wd-1' },
+        data: expect.objectContaining({ status: WithdrawalStatus.FAILED }),
+      }),
+    );
+  });
+
+  it('refuses to execute if the rebuilt SafeTx hash no longer matches the signed safeTxHash', async () => {
+    safe.hashSafeTx.mockReturnValue('0xsome-other-hash');
 
     await (service as any).execute('wd-1');
 

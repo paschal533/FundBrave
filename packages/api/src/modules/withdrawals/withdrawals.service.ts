@@ -396,6 +396,19 @@ export class WithdrawalsService {
         w.toAddress as Address,
         BigInt(w.nonce),
       );
+      // Defense-in-depth: the two stored signatures were made against
+      // w.safeTxHash at request/approval time. Nothing today can change
+      // amountRaw/toAddress/nonce/tokenAddress on an already-signed row, but
+      // asserting the rebuilt tx still hashes to that same value means any
+      // future code path that could (e.g. an admin "edit pending withdrawal"
+      // tool) fails loudly here instead of silently executing a transaction
+      // the two signers never actually signed.
+      const rebuiltHash = this.safe.hashSafeTx(w.chainId, safeAddress, tx);
+      if (rebuiltHash !== w.safeTxHash) {
+        throw new Error(
+          `Rebuilt SafeTx hash ${rebuiltHash} does not match signed hash ${w.safeTxHash} — refusing to execute`,
+        );
+      }
       const adminAddress = this.safe.getRootAdminAddress();
 
       const execTxHash = await this.safe.execTransaction(w.chainId, safeAddress, tx, [
