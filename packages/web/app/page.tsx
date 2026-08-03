@@ -556,7 +556,7 @@ export default function HomePage() {
         while a stronger uniform overlay keeps text legible on small
         screens where the text overlaps the subject.
       */}
-      <section className="hero-section relative left-1/2 -ml-[50vw] flex min-h-[90svh] w-screen flex-col justify-center overflow-hidden bg-[#171717] px-4 pt-24 pb-32 sm:px-6 md:min-h-[90vh] md:pt-28 md:pb-48">
+      <section className="hero-section relative left-1/2 -ml-[50vw] flex min-h-[90svh] w-screen flex-col justify-center overflow-hidden bg-[#171717] px-4 pt-24 pb-32 sm:px-6 md:min-h-[90vh] md:pt-28 md:pb-48 lg:pt-40">
         <Image
           src="/landing/hero.png"
           alt=""
