@@ -226,7 +226,7 @@ export function CampaignCard({
       href={`/campaigns/${campaign.slug}`}
       aria-label={`View campaign: ${campaign.title}`}
       className={cn(
-        "group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-elevated",
+        "group flex flex-col overflow-hidden rounded-t-xl border border-white/10 bg-surface-elevated",
         "transition-all duration-200 hover:-translate-y-1 hover:border-white/20 hover:shadow-lg",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
         className
@@ -263,14 +263,17 @@ export function CampaignCard({
         <div className="mt-auto flex flex-col gap-2">
           <CampaignProgressBar percent={percent} />
 
-          <div className="flex items-baseline justify-between gap-2 text-sm">
-            <span className="font-semibold text-foreground">
+          {/* Wraps as whole amounts rather than breaking "of $90,000" across
+              lines, which is what happened once the grid went 2-up on
+              tablets and the card dropped to ~200px of inner width. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm">
+            <span className="font-semibold whitespace-nowrap text-foreground">
               {formatUsd(campaign.raisedUsd)}
               <span className="ml-1 font-normal text-text-tertiary">
                 raised
               </span>
             </span>
-            <span className="text-text-secondary">
+            <span className="whitespace-nowrap text-text-secondary">
               of {formatUsd(campaign.goalUsd)}
             </span>
           </div>
@@ -302,7 +305,7 @@ export function CampaignCardSkeleton({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-elevated",
+        "flex flex-col overflow-hidden rounded-t-xl border border-white/10 bg-surface-elevated",
         className
       )}
     >

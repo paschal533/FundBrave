@@ -34,6 +34,7 @@ import {
   Grid3X3,
   Search,
 } from "@/components/ui/icons";
+import { Select } from "@/components/ui/Select";
 import { Search as SearchLucide } from "lucide-react";
 
 const PAGE_SIZE = 12;
@@ -335,9 +336,13 @@ function CampaignsContent() {
         </p>
       </header>
 
-      {/* Search + sort */}
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
+      {/* Search + sort. From sm the two controls share a row, but the search
+          keeps a 18rem floor and the row may wrap — below ~540px a rigid row
+          squeezed the input to half the toolbar (its placeholder truncated)
+          while the select ate the rest. When it wraps, the search takes the
+          full first line and the sort control sits right-aligned beneath. */}
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative flex-1 sm:min-w-[18rem]">
           <Search
             size={18}
             className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-text-tertiary"
@@ -349,26 +354,21 @@ function CampaignsContent() {
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search campaigns..."
             aria-label="Search campaigns"
-            className="h-12 w-full rounded-2xl border border-white/10 bg-surface-elevated pr-4 pl-11 text-sm text-foreground placeholder:text-text-tertiary focus:border-primary focus:outline-none"
+            className="h-12 w-full rounded-2xl border border-white/10 bg-surface-elevated pr-4 pl-11 text-base text-foreground placeholder:text-text-tertiary focus:border-primary focus:outline-none md:text-sm"
           />
         </div>
-        <label className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:ml-auto">
           <span className="text-sm whitespace-nowrap text-text-secondary">
             Sort by
           </span>
-          <select
+          <Select
             value={sort}
-            onChange={(e) => setParams({ sort: e.target.value, page: null })}
-            aria-label="Sort campaigns"
-            className="h-12 min-w-[150px] cursor-pointer rounded-2xl border border-white/10 bg-surface-elevated px-4 text-sm text-foreground focus:border-primary focus:outline-none"
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={SORT_OPTIONS}
+            onChange={(next) => setParams({ sort: next, page: null })}
+            ariaLabel="Sort campaigns"
+            className="flex-1 sm:flex-none"
+          />
+        </div>
       </div>
 
       {/* Mobile category chips */}
@@ -381,7 +381,7 @@ function CampaignsContent() {
 
         <div className="min-w-0">
           {isLoading ? (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <CampaignCardSkeleton key={i} />
               ))}
@@ -418,8 +418,11 @@ function CampaignsContent() {
           ) : (
             <>
               <div
+                /* md keeps 2 columns: once the category sidebar appears at
+                   768 the old md:grid-cols-1 dropped the results to a single
+                   ~455px card per row for the whole tablet range. */
                 className={cn(
-                  "grid grid-cols-1 gap-5 transition-opacity sm:grid-cols-2 xl:grid-cols-3",
+                  "grid grid-cols-1 gap-5 transition-opacity sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3",
                   isPlaceholderData && "pointer-events-none opacity-60"
                 )}
               >

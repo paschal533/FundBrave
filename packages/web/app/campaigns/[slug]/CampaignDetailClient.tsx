@@ -129,12 +129,26 @@ function MediaGallery({
 // Stats + donate panel
 // ============================================================================
 
-function StatsCard({ campaign }: { campaign: CampaignDetail }) {
+function StatsCard({
+  campaign,
+  className,
+}: {
+  campaign: CampaignDetail;
+  className?: string;
+}) {
   const percent = progressPercent(campaign.raisedUsd, campaign.goalUsd);
   const remaining = daysLeft(campaign.deadline);
 
   return (
-    <aside className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-surface-elevated p-5 sm:p-6 lg:sticky lg:top-24">
+    <aside
+      /* Below lg the card is stacked under the gallery. Capping it at 36rem
+         and centring it keeps the donate flow from stretching across a
+         900px tablet; lg resets both so the sticky rail is untouched. */
+      className={cn(
+        "flex flex-col gap-5 rounded-2xl border border-white/10 bg-surface-elevated p-5 sm:mx-auto sm:w-full sm:max-w-xl sm:p-6 lg:mx-0 lg:max-w-none lg:sticky lg:top-24",
+        className
+      )}
+    >
       <div>
         <p className="text-3xl font-bold text-foreground">
           {formatUsd(campaign.raisedUsd)}
@@ -335,7 +349,7 @@ export function CampaignDetailClient() {
           )}
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <h1 className="text-3xl font-bold text-balance text-foreground">
+          <h1 className="min-w-0 text-2xl font-bold break-words text-balance text-foreground sm:text-3xl">
             {campaign.title}
           </h1>
           <Button
@@ -350,9 +364,12 @@ export function CampaignDetailClient() {
         </div>
       </header>
 
+      {/* Mobile order: gallery → donate → story → donations. On lg the
+          explicit col/row placements reproduce the classic two-column
+          layout exactly (left content, right sticky rail). */}
       <div className="mt-6 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
-        {/* Left: gallery + story */}
-        <div className="flex min-w-0 flex-col gap-6">
+        {/* Gallery + creator */}
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
           <MediaGallery media={campaign.media} title={campaign.title} />
 
           {/* Creator */}
@@ -371,13 +388,22 @@ export function CampaignDetailClient() {
               </div>
             </div>
           )}
+        </div>
 
-          {/* Story */}
+        {/* Stats + donate — second in DOM so phones see it right after
+            the gallery, before the long story. */}
+        <StatsCard
+          campaign={campaign}
+          className="lg:col-start-2 lg:row-start-1 lg:row-span-2"
+        />
+
+        {/* Story + donations */}
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-2">
           <section aria-label="Campaign story">
             <h2 className="text-xl font-semibold text-foreground">
               About this campaign
             </h2>
-            <p className="mt-3 text-base leading-relaxed whitespace-pre-wrap text-text-secondary">
+            <p className="mt-3 text-base leading-relaxed whitespace-pre-wrap break-words text-text-secondary">
               {campaign.description}
             </p>
           </section>
@@ -390,9 +416,6 @@ export function CampaignDetailClient() {
             />
           )}
         </div>
-
-        {/* Right: stats + donate */}
-        <StatsCard campaign={campaign} />
       </div>
     </main>
   );

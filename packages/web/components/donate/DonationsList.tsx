@@ -133,7 +133,7 @@ export function DonationsList({
                       <p className="flex items-center gap-1.5 text-xs text-text-tertiary">
                         <span>{donation.tokenSymbol}</span>
                         {chain && (
-                          <span className="rounded-full border border-white/10 bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium">
+                          <span className="hidden rounded-full border border-white/10 bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium sm:inline-block">
                             {chain.name}
                           </span>
                         )}
@@ -143,7 +143,7 @@ export function DonationsList({
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label={`View transaction by ${name} on the block explorer`}
-                            className="text-text-tertiary transition-colors hover:text-foreground"
+                            className="-m-2 inline-flex h-11 w-11 items-center justify-center p-2 text-text-tertiary transition-colors hover:text-foreground sm:m-0 sm:h-auto sm:w-auto sm:p-0"
                           >
                             <ExternalLink size={12} aria-hidden="true" />
                           </a>

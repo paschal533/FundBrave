@@ -14,7 +14,14 @@ import { Spinner } from "./Spinner";
 
 const buttonVariants = cva(
   // Base styles
-  "inline-flex items-center justify-center gap-2 select-none whitespace-nowrap rounded-[20px] font-alt font-semibold tracking-[0.04em] text-base leading-6 transition-all duration-[var(--duration-fast)] ease-[var(--ease-snappy)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
+  // transition lists explicit properties (not `all`) so layout props never
+  // animate; opacity is deliberately NOT transitioned so JS animation
+  // libraries (GSAP intro tweens) can drive it without CSS fighting each
+  // frame. active:scale gives every pressable element physical feedback.
+  // Literal 8px radius per the Figma Onboarding design system. NOT
+  // rounded-lg: this project's @theme remaps --radius-lg to 10-12px,
+  // which renders visibly rounder than the design.
+  "inline-flex items-center justify-center gap-2 select-none whitespace-nowrap rounded-[8px] font-alt font-semibold tracking-[0.04em] text-base leading-6 transition-[transform,color,background-color,border-color,box-shadow,filter] duration-[var(--duration-fast)] ease-[var(--ease-snappy)] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
   {
     variants: {
       variant: {

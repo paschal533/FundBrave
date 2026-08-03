@@ -84,7 +84,7 @@ export function RaisedBreakdown({
               </span>
               <span className="shrink-0 font-medium text-foreground">
                 {formatUsd(row.totalUsd)}
-                <span className="ml-1.5 text-xs font-normal text-text-tertiary">
+                <span className="ml-1.5 hidden text-xs font-normal text-text-tertiary sm:inline">
                   · {row.count} donation{row.count === 1 ? "" : "s"}
                 </span>
               </span>

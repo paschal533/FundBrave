@@ -123,7 +123,7 @@ function ChainChips({
   onSelect: (chainId: number) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="Network">
+    <div className="flex flex-wrap gap-2.5 sm:gap-2" role="group" aria-label="Network">
       {chains.map((chain) => {
         const active = chain.chainId === selectedChainId;
         return (
@@ -133,7 +133,7 @@ function ChainChips({
             aria-pressed={active}
             onClick={() => onSelect(chain.chainId)}
             className={cn(
-              "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+              "inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:min-h-0",
               active
                 ? "border-primary bg-primary/15 text-foreground"
                 : "border-white/10 bg-surface-elevated text-text-secondary hover:bg-surface-overlay hover:text-foreground"
@@ -162,7 +162,7 @@ function TokenChips({
   onSelect: (symbol: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="Token">
+    <div className="flex flex-wrap gap-2.5 sm:gap-2" role="group" aria-label="Token">
       {tokens.map((token) => {
         const active = token.symbol === selectedSymbol;
         return (
@@ -172,7 +172,7 @@ function TokenChips({
             aria-pressed={active}
             onClick={() => onSelect(token.symbol)}
             className={cn(
-              "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+              "inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:min-h-0",
               active
                 ? "border-primary bg-primary/15 text-foreground"
                 : "border-white/10 bg-surface-elevated text-text-secondary hover:bg-surface-overlay hover:text-foreground"
@@ -594,7 +594,7 @@ function WalletTab({
           </div>
 
           {isStablecoin(token.symbol) && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {STABLE_PRESETS.map((preset) => (
                 <button
                   key={preset}
@@ -627,23 +627,30 @@ function WalletTab({
             }}
           />
 
+          {/* min-w-0 + truncating child span keep long labels (chain
+              names, 12-decimal amounts) from overflowing the 360px
+              panel; sm+ restores the stock button metrics. */}
           {wrongChain ? (
             <Button
               fullWidth
               onClick={() => switchChain({ chainId: chain.chainId })}
               loading={switching}
               loadingText="Switching network..."
+              className="min-w-0 px-4 text-sm sm:px-6 sm:text-base [&>span]:truncate"
             >
-              Switch to {chain.name}
+              <span className="truncate">Switch to {chain.name}</span>
             </Button>
           ) : (
             <Button
               fullWidth
               onClick={handleDonate}
               loading={awaitingWallet}
-              loadingText="Confirm in your wallet..."
+              loadingText="Confirm in wallet..."
+              className="min-w-0 px-4 text-sm sm:px-6 sm:text-base [&>span]:truncate"
             >
-              Donate {amount ? `${amount} ${token.symbol}` : "now"}
+              <span className="truncate">
+                Donate {amount ? `${amount} ${token.symbol}` : "now"}
+              </span>
             </Button>
           )}
         </>
@@ -782,7 +789,7 @@ export function DonatePanel({
               aria-selected={tab === id}
               onClick={() => setTab(id)}
               className={cn(
-                "h-10 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+                "min-h-11 flex-1 rounded-lg px-2 py-2 text-xs leading-tight font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:h-10 sm:min-h-0 sm:px-3 sm:py-0 sm:text-sm",
                 tab === id
                   ? "bg-surface-overlay text-foreground"
                   : "text-text-secondary hover:text-foreground"

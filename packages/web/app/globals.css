@@ -25,6 +25,14 @@
   --primary-800: #96401f;
   --primary-900: #6e2e16;
 
+  /* Landing redesign palette (Figma "FundBrave-Logos" → Onboarding, 2026-08).
+     Fixed brand values — never redefined in .dark, same rationale as
+     --gradient-brand-fixed: these sections look identical in both themes. */
+  --fb-orange: #fe6217;
+  --fb-green: #1e6b4c;
+  --fb-cream: #faf5ef;
+  --fb-ink: #1f1a17;
+
   /* Neutral Dark Colors */
   --neutral-dark-50: #8e98a8;
   --neutral-dark-100: #b3b0b8;
@@ -985,4 +993,26 @@ textarea:focus {
 
 .animate-slide-up {
   animation: slide-up 300ms ease-out;
+}
+
+/* ============================================================================
+   LANDING MOTION — entrances & scroll reveals
+   Classical, physical motion: expo-out curve, opacity+transform only,
+   no bounce. The global prefers-reduced-motion block above makes all of
+   these effectively instant for users who ask for less motion.
+   ============================================================================ */
+
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hero motion is GSAP-driven (see app/page.tsx — useGSAP timeline with
+   SplitText word masks). CSS only supplies the overflow mask for the
+   second headline line; the small inline padding keeps the green
+   stroke's horizontal bleed from being clipped. */
+.hero-mask {
+  display: block;
+  overflow: hidden;
+  padding-inline: 0.15em;
+  margin-inline: -0.15em;
 }
