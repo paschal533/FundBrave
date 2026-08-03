@@ -364,10 +364,10 @@ export function CampaignDetailClient() {
         </div>
       </header>
 
-      {/* Mobile order: gallery → story → donate → donations. On lg the
-          explicit col/row placements reproduce the classic two-column
-          layout exactly (left content, right sticky rail) regardless of
-          this source order. */}
+      {/* Mobile order: gallery → story → donate → donations (donations
+          last, after the ask). On lg the explicit col/row placements
+          reproduce the classic two-column layout exactly (left content,
+          right sticky rail) regardless of this source order. */}
       <div className="mt-6 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Gallery + creator */}
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
@@ -391,26 +391,19 @@ export function CampaignDetailClient() {
           )}
         </div>
 
-        {/* Story + donations — second in DOM so phones read the campaign's
-            own story before being asked to donate. */}
-        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-2">
-          <section aria-label="Campaign story">
-            <h2 className="text-xl font-semibold text-foreground">
-              About this campaign
-            </h2>
-            <p className="mt-3 text-base leading-relaxed whitespace-pre-wrap break-words text-text-secondary">
-              {campaign.description}
-            </p>
-          </section>
-
-          {/* Recent donations (published campaigns only) */}
-          {campaign.status !== "DRAFT" && (
-            <DonationsList
-              campaignId={campaign.id}
-              pollIntervalMs={POLL_INTERVAL_MS}
-            />
-          )}
-        </div>
+        {/* Story — second in DOM so phones read the campaign's own story
+            before being asked to donate. */}
+        <section
+          aria-label="Campaign story"
+          className="lg:col-start-1 lg:row-start-2"
+        >
+          <h2 className="text-xl font-semibold text-foreground">
+            About this campaign
+          </h2>
+          <p className="mt-3 text-base leading-relaxed whitespace-pre-wrap break-words text-text-secondary">
+            {campaign.description}
+          </p>
+        </section>
 
         {/* Stats + donate — third in DOM on mobile (after the story), but
             explicit grid placement keeps it as the sticky right rail on lg
@@ -419,6 +412,18 @@ export function CampaignDetailClient() {
           campaign={campaign}
           className="lg:col-start-2 lg:row-start-1 lg:row-span-2"
         />
+
+        {/* Recent donations (published campaigns only) — last in DOM so
+            phones see them after the donate panel; on lg they sit below
+            the story in the left column, under the sticky rail's span. */}
+        {campaign.status !== "DRAFT" && (
+          <div className="lg:col-start-1 lg:row-start-3">
+            <DonationsList
+              campaignId={campaign.id}
+              pollIntervalMs={POLL_INTERVAL_MS}
+            />
+          </div>
+        )}
       </div>
     </main>
   );
