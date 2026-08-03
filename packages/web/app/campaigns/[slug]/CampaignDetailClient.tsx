@@ -364,9 +364,10 @@ export function CampaignDetailClient() {
         </div>
       </header>
 
-      {/* Mobile order: gallery → donate → story → donations. On lg the
+      {/* Mobile order: gallery → story → donate → donations. On lg the
           explicit col/row placements reproduce the classic two-column
-          layout exactly (left content, right sticky rail). */}
+          layout exactly (left content, right sticky rail) regardless of
+          this source order. */}
       <div className="mt-6 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Gallery + creator */}
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
@@ -390,14 +391,8 @@ export function CampaignDetailClient() {
           )}
         </div>
 
-        {/* Stats + donate — second in DOM so phones see it right after
-            the gallery, before the long story. */}
-        <StatsCard
-          campaign={campaign}
-          className="lg:col-start-2 lg:row-start-1 lg:row-span-2"
-        />
-
-        {/* Story + donations */}
+        {/* Story + donations — second in DOM so phones read the campaign's
+            own story before being asked to donate. */}
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-2">
           <section aria-label="Campaign story">
             <h2 className="text-xl font-semibold text-foreground">
@@ -416,6 +411,14 @@ export function CampaignDetailClient() {
             />
           )}
         </div>
+
+        {/* Stats + donate — third in DOM on mobile (after the story), but
+            explicit grid placement keeps it as the sticky right rail on lg
+            regardless of source order. */}
+        <StatsCard
+          campaign={campaign}
+          className="lg:col-start-2 lg:row-start-1 lg:row-span-2"
+        />
       </div>
     </main>
   );

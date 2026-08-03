@@ -55,6 +55,26 @@ export function Header() {
 
   const isHome = pathname === "/";
 
+  // Past a small scroll threshold, the transparent hero header swaps to
+  // the same solid bar every other page uses. Without this it stayed
+  // transparent for the entire page (it has to stay `fixed` to remain
+  // reachable while scrolling — see the position comment below), which
+  // read as "barely visible" over the light Discover Causes / orange
+  // band sections beneath the hero.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    if (!isHome) return;
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isHome]);
+
+  // Drives every color/background choice below. isHome alone still
+  // governs pure sizing (h-20 vs h-16, the bigger BrandMark) — only the
+  // "transparent over a dark photo" look needs to give way once scrolled.
+  const transparentVariant = isHome && !scrolled;
+
   // Navigating anywhere closes the menu and resets search.
   useEffect(() => {
     setMenuOpen(false);
@@ -124,33 +144,39 @@ export function Header() {
 
   const desktopLinkClass = cn(
     "rounded-md text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
-    isHome
+    transparentVariant
       ? "text-white/90 hover:text-white"
       : "text-text-secondary hover:text-foreground"
   );
 
   const mobileLinkClass = cn(
     "rounded-md px-2 py-3 text-base font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
-    isHome
+    transparentVariant
       ? "text-white/90 hover:bg-white/10 hover:text-white"
       : "text-foreground hover:bg-surface-overlay"
   );
 
-  const searchTextClass = isHome
+  const searchTextClass = transparentVariant
     ? "text-white placeholder:text-white/60"
     : "text-foreground placeholder:text-text-tertiary";
 
   return (
     <header
       className={cn(
-        "z-40",
+        "z-40 transition-colors duration-300",
         isHome
           ? // fixed, not absolute: absolute scrolls with the document, so
             // past the hero this header (carrying primary nav, search,
             // and auth/dashboard links) would scroll off-screen entirely
             // and stay inaccessible until the user scrolled back to the
-            // very top.
-            "fixed inset-x-0 top-0 bg-gradient-to-b from-black/70 via-black/35 to-transparent"
+            // very top. Background swaps from the transparent hero scrim
+            // to the standard solid bar once scrolled — see `scrolled`.
+            cn(
+              "fixed inset-x-0 top-0",
+              transparentVariant
+                ? "bg-gradient-to-b from-black/70 via-black/35 to-transparent"
+                : "border-b border-white/10 bg-background/80 backdrop-blur-md"
+            )
           : "sticky top-0 border-b border-white/10 bg-background/80 backdrop-blur-md"
       )}
     >
@@ -171,7 +197,7 @@ export function Header() {
             <span
               className={cn(
                 "font-display text-lg font-bold tracking-tight sm:text-xl",
-                isHome
+                transparentVariant
                   ? "text-[var(--fb-orange)]"
                   : "bg-[linear-gradient(90deg,var(--color-primary)_0%,var(--color-primary-600)_100%)] bg-clip-text text-transparent"
               )}
@@ -209,7 +235,7 @@ export function Header() {
             className={cn(
               "hidden items-center rounded-full border transition-colors duration-200 ease-out sm:flex",
               searchOpen
-                ? isHome
+                ? transparentVariant
                   ? "border-white/25 bg-white/10"
                   : "border-border-default bg-surface-elevated"
                 : "border-transparent"
@@ -230,7 +256,7 @@ export function Header() {
               aria-label={searchOpen ? "Close search" : "Search campaigns"}
               className={cn(
                 "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
-                isHome
+                transparentVariant
                   ? "text-white/90 hover:bg-white/10 hover:text-white"
                   : "text-text-secondary hover:bg-surface-overlay hover:text-foreground"
               )}
@@ -266,11 +292,12 @@ export function Header() {
             <>
               <Button
                 asChild
-                variant={isHome ? "ghost" : "secondary"}
+                variant={transparentVariant ? "ghost" : "secondary"}
                 size="sm"
                 className={cn(
                   "hidden sm:inline-flex",
-                  isHome && "text-white/90 hover:bg-white/10 hover:text-white"
+                  transparentVariant &&
+                    "text-white/90 hover:bg-white/10 hover:text-white"
                 )}
               >
                 <Link href="/campaigns/create" aria-label="Start a campaign">
@@ -282,7 +309,7 @@ export function Header() {
                 href="/dashboard"
                 className={cn(
                   "flex min-w-0 items-center gap-2 rounded-full border py-1 pl-1 pr-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:pr-3",
-                  isHome
+                  transparentVariant
                     ? "border-white/25 hover:bg-white/10"
                     : "border-white/10 hover:bg-surface-overlay"
                 )}
@@ -296,7 +323,7 @@ export function Header() {
                 <span
                   className={cn(
                     "hidden max-w-[140px] truncate text-sm sm:inline",
-                    isHome ? "text-white" : "text-foreground"
+                    transparentVariant ? "text-white" : "text-foreground"
                   )}
                 >
                   {user.username ? `@${user.username}` : user.email}
@@ -310,7 +337,8 @@ export function Header() {
                 loadingText="..."
                 className={cn(
                   "hidden sm:inline-flex",
-                  isHome && "text-white/90 hover:bg-white/10 hover:text-white"
+                  transparentVariant &&
+                    "text-white/90 hover:bg-white/10 hover:text-white"
                 )}
               >
                 Log out
@@ -322,7 +350,7 @@ export function Header() {
                 href="/auth/login"
                 className={cn(
                   "hidden rounded-md px-1 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:inline",
-                  isHome
+                  transparentVariant
                     ? "text-white/90 hover:text-white"
                     : "text-text-secondary hover:text-foreground"
                 )}
@@ -348,7 +376,7 @@ export function Header() {
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             className={cn(
               "flex size-10 items-center justify-center rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] sm:hidden",
-              isHome
+              transparentVariant
                 ? "text-white hover:bg-white/10"
                 : "text-foreground hover:bg-surface-overlay"
             )}
@@ -380,7 +408,7 @@ export function Header() {
         id="mobile-menu"
         className={cn(
           "absolute inset-x-0 top-full border-b shadow-xl transition-[opacity,transform] duration-200 ease-out sm:hidden",
-          isHome
+          transparentVariant
             ? "border-white/10 bg-[#171717]"
             : "border-border-default bg-background",
           menuOpen
@@ -395,7 +423,7 @@ export function Header() {
             onSubmit={handleMobileSearchSubmit}
             className={cn(
               "mb-3 flex h-11 items-center gap-2.5 rounded-full border px-4",
-              isHome
+              transparentVariant
                 ? "border-white/25 bg-white/10"
                 : "border-border-default bg-surface-elevated"
             )}
@@ -404,7 +432,7 @@ export function Header() {
               size={18}
               className={cn(
                 "shrink-0",
-                isHome ? "text-white/70" : "text-text-tertiary"
+                transparentVariant ? "text-white/70" : "text-text-tertiary"
               )}
               aria-hidden="true"
             />
@@ -445,7 +473,7 @@ export function Header() {
           <div
             className={cn(
               "my-3 border-t",
-              isHome ? "border-white/10" : "border-border-default"
+              transparentVariant ? "border-white/10" : "border-border-default"
             )}
           />
 
