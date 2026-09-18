@@ -1016,3 +1016,74 @@ textarea:focus {
   padding-inline: 0.15em;
   margin-inline: -0.15em;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Dashboard surface tokens.
+
+   Defined as variables that flip with the theme rather than as `dark:`
+   overrides in the markup: an arbitrary-value utility like
+   `bg-[var(--fb-cream)]` and a named one like `dark:bg-surface-elevated`
+   carry equal specificity in Tailwind 4, so which one wins depends on
+   stylesheet order — in practice the cream survived into dark mode while
+   the text still flipped to white, leaving white-on-cream panels.
+   One variable per role removes the race entirely.
+   ────────────────────────────────────────────────────────────────────── */
+:root {
+  --dash-panel: var(--fb-cream);
+  --dash-panel-border: color-mix(in srgb, var(--fb-ink) 8%, transparent);
+  --dash-row: color-mix(in srgb, var(--fb-ink) 3%, var(--fb-cream));
+  --dash-divider: color-mix(in srgb, var(--fb-ink) 8%, transparent);
+  --dash-ink: var(--fb-ink);
+  --dash-ink-muted: color-mix(in srgb, var(--fb-ink) 65%, transparent);
+  /* 64%, not 55%: at 55% this hit 3.78:1 on the panel and carried 12-14px
+     labels, figures and timestamps, all of which need 4.5:1. */
+  --dash-ink-faint: color-mix(in srgb, var(--fb-ink) 64%, transparent);
+  --dash-track: color-mix(in srgb, var(--fb-ink) 10%, transparent);
+  --dash-skeleton: color-mix(in srgb, var(--fb-ink) 9%, var(--fb-cream));
+  --dash-row-hover: color-mix(in srgb, var(--fb-ink) 2%, var(--dash-row));
+  --dash-panel-shadow: 8px 8px 71px 0px rgba(0, 0, 0, 0.08);
+  --dash-row-shadow: 4px 8px 32px 0px rgba(0, 0, 0, 0.1);
+}
+
+.dark {
+  --dash-panel: var(--surface-elevated);
+  --dash-panel-border: rgba(255, 255, 255, 0.1);
+  --dash-row: var(--surface-sunken);
+  --dash-divider: rgba(255, 255, 255, 0.1);
+  --dash-ink: var(--foreground);
+  --dash-ink-muted: var(--text-secondary);
+  /* Tuned against the elevated panel, not --background: --text-tertiary
+     only reaches 4.04:1 there. */
+  --dash-ink-faint: oklch(0.64 0.01 60);
+  --dash-track: rgba(255, 255, 255, 0.1);
+  --dash-skeleton: rgba(255, 255, 255, 0.07);
+  --dash-row-hover: color-mix(in srgb, white 4%, var(--dash-row));
+  /* Shadows do not read on near-black; an inset top highlight keeps the
+     panels feeling elevated the way the landing page's shadows do. */
+  --dash-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --dash-row-shadow: 4px 8px 32px 0px rgba(0, 0, 0, 0.35);
+}
+
+/* Dashboard panel entrance. Short travel, fades in, and `backwards` so a
+   delayed panel is hidden before it starts instead of painting in place and
+   then jumping. */
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-dash-rise {
+  animation: dash-rise 420ms var(--ease-out-expo) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dash-rise {
+    animation: none;
+  }
+}
